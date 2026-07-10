@@ -71,7 +71,7 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
 /**
  * 运动周期 = 半小节 = 2 拍
  * 空(16分) · 123 大振幅 · 456789 小振幅 · 10=下一周期空拍滚动+落下
- * 0 台阶：开场水平台（无声匀速滚入），循环回到此显示次数
+ * 0 台阶：开场水平台，循环回到此显示次数
  */
 (() => {
   const canvas = document.getElementById("stage");
@@ -108,8 +108,6 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
   const STEP_W_PER_2BEATS = 100;
   const STEP_H = 70;
   const BALL_R = 28;
-  const ENTRANCE_SPEED = 220;
-  const ENTRANCE_X0 = -BALL_R - 40;
   const H0 = STEP_H;
   const RESTITUTION = 0.5;
 
@@ -176,9 +174,6 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
 
   function scrollXAt(tMus) {
     const { stepIndex, plan, beatInStep } = locate(tMus);
-    if (isFlatLanding(plan) && !introDone && loopCount === 0) {
-      return cumWidthUpTo(stepIndex);
-    }
     const u = beatInStep / stepBeats(plan);
     return cumWidthUpTo(stepIndex) + u * stepWidth(plan);
   }
@@ -236,7 +231,6 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
   let tapStep = 0;
   let schedCursor = 0, played = new Set();
   let pageT0 = performance.now() / 1000;
-  let introDone = false;
   let loopCount = 0;
   let prevPlan = -1;
   let prevStepIndex = -1;
@@ -422,17 +416,9 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     const ground = cur.y - BALL_R;
     const groundPrev = prev.y - BALL_R;
 
-    // 0 台阶：首次匀速从画外滚入；循环回到此台阶显示次数
+    // 0 台阶：球在中心，平台随节拍滚动；循环回到此台阶显示次数
     if (isFlatLanding(plan)) {
-      let x = BX;
-      if (!introDone && loopCount === 0) {
-        const dist = BX - ENTRANCE_X0;
-        const dur = dist / ENTRANCE_SPEED;
-        const u = Math.min(1, Math.max(0, tMus / dur));
-        x = ENTRANCE_X0 + dist * u;
-        if (u >= 1) introDone = true;
-      }
-      return { x, y: ground, bar: plan, impact: false };
+      return { x: BX, y: ground, bar: plan, impact: false };
     }
 
     // 周期开头空拍：上一台阶滚落
@@ -482,6 +468,13 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     return plan % 2 === 1 ? { bg: LIGHT, fg: DARK } : { bg: DARK, fg: LIGHT };
   }
 
+  function barNumForPlan(plan) {
+    return (
+      STEPS[plan].bar ||
+      Math.floor((STEPS[plan].slot != null ? STEPS[plan].slot : plan) / 2) + 1
+    );
+  }
+
   function draw(tMus) {
     const scrollX = scrollXAt(tMus);
     const ball = ballState(tMus);
@@ -490,13 +483,13 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     ctx.fillRect(0, 0, W, H);
 
     const mid = locate(tMus).stepIndex;
-    const onFlat = isFlatLanding(planOf(mid));
     ctx.lineWidth = 2.5;
 
     for (let i = mid - 3; i <= mid + 3; i++) {
       const plan = planOf(i);
-      // 开场 0 台阶：左侧不画 21，右侧保留 1
-      if (onFlat && loopCount === 0 && i < mid) continue;
+      const barNum = barNumForPlan(plan);
+      // 第一圈未走到 21 前，不画 wrap 出来的 21
+      if (loopCount === 0 && barNum === 21 && i < 0) continue;
 
       const s = stepScreen(i, scrollX);
       if (isFlatLanding(plan)) {
@@ -507,14 +500,12 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
         ctx.moveTo(-40, s.y);
         ctx.lineTo(xR, s.y);
         ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(s.x, s.y);
-        ctx.lineTo(s.x, s.y + 20);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(xR, s.y);
-        ctx.lineTo(xR, s.y + STEP_H + 40);
-        ctx.stroke();
+        if (loopCount > 0) {
+          ctx.beginPath();
+          ctx.moveTo(xR, s.y);
+          ctx.lineTo(xR, s.y + STEP_H + 40);
+          ctx.stroke();
+        }
         ctx.fillStyle = fg;
         ctx.font = "600 18px system-ui, sans-serif";
         ctx.textAlign = "center";
@@ -524,21 +515,19 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
       }
 
       if (s.x > W + 40 || s.x + s.w < -40) continue;
-      const barNum =
-        STEPS[plan].bar ||
-        Math.floor((STEPS[plan].slot != null ? STEPS[plan].slot : plan) / 2) + 1;
 
       ctx.strokeStyle = fg;
+      const showDrop = stepKind(plan) !== "cycle" || i <= mid;
       ctx.beginPath();
       ctx.moveTo(s.x, s.y);
       ctx.lineTo(s.x + s.w, s.y);
-      if (stepKind(plan) === "cycle") {
+      if (stepKind(plan) === "cycle" && showDrop) {
         ctx.lineTo(s.x + s.w, s.y + STEP_H + 40);
       }
       ctx.stroke();
       ctx.beginPath();
       ctx.moveTo(s.x, s.y);
-      ctx.lineTo(s.x, s.y + (stepKind(plan) === "cycle" ? STEP_H + 40 : 20));
+      ctx.lineTo(s.x, s.y + (stepKind(plan) === "cycle" && showDrop ? STEP_H + 40 : 20));
       ctx.stroke();
 
       ctx.fillStyle = fg;
