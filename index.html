@@ -178,14 +178,21 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
   }
 
   function scrollDropAtMus(tMus) {
-    const { stepIndex, beatInStep } = locate(tMus);
-    if (beatInStep < REST && stepIndex > 0) {
+    const { stepIndex, plan, beatInStep } = locate(tMus);
+    // 只在 cycle 台阶 REST 滚落时抬升相机；flat 22 及非掉落段高度不变
+    if (stepKind(plan) === "cycle" && beatInStep < REST && stepIndex > 0) {
       const u = beatInStep / REST;
       const prevDrop = cumDropUpTo(stepIndex - 1);
       const curDrop = cumDropUpTo(stepIndex);
       if (u < ROLL_FRAC) return prevDrop;
       const f = (u - ROLL_FRAC) / (1 - ROLL_FRAC);
       return prevDrop + (curDrop - prevDrop) * (f * f);
+    }
+    if (isBar22(plan)) {
+      return cumDropUpTo(Math.max(0, stepIndex - 1));
+    }
+    if (stepKind(plan) === "cycle") {
+      return cumDropUpTo(stepIndex);
     }
     return cumDropUpTo(stepIndex);
   }
@@ -493,7 +500,7 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
         ctx.moveTo(-40, s.y);
         ctx.lineTo(xR, s.y);
         ctx.stroke();
-        if (onBar22) {
+        if (onBar22 || i === mid - 1) {
           ctx.beginPath();
           ctx.moveTo(xR, s.y);
           ctx.lineTo(xR, s.y + STEP_H + 40);
