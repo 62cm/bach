@@ -40,7 +40,7 @@
   </style>
 </head>
 <body>
-  <audio id="music" src="bwv772a.m4a" preload="auto" playsinline loop autoplay></audio>
+  <audio id="music" src="bwv772a.m4a" preload="auto" playsinline autoplay></audio>
   <script>
 (function () {
   try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (_) {}
@@ -88,6 +88,7 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
   const PIECE_DUR = PIECE_BEATS * BEAT;
   const START_BEAT = (TOTAL_BARS - 1) * 4; // bar 22
   const AUDIO_START = PIECE_DUR; // 开场 22 过完才出声
+  const INTRO_SEC = (PIECE_BEATS - START_BEAT) * BEAT; // 第22小节无声开场
 
   const REST = 0.25;
   const BIG = [0.25, 0.5, 0.75];
@@ -219,13 +220,11 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
   let started = true;
   let pageT0 = performance.now() / 1000;
-  let audioSynced = false;
 
   function markAudioReady() {
     if (!music || music.paused) return;
     window.__audioReady = true;
-    audioSynced = true;
-    pageT0 = performance.now() / 1000 - music.currentTime;
+    syncAudio(true);
   }
 
   function startMusic() {
@@ -276,15 +275,36 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     }
     startMusic().catch(bindGestureUnlock);
     music?.addEventListener("playing", markAudioReady, { once: true });
+    music?.addEventListener("ended", () => {
+      if (!music) return;
+      music.currentTime = INTRO_SEC;
+      music.play().catch(() => {});
+    });
   }
 
-  /** 画面与音乐共用同一时钟：优先跟音频，否则跟页面时钟 */
+  /** 动画主时钟；音频跟随映射（开场静音只播一次，曲谱按 PIECE_DUR 循环） */
   function musicalTime() {
-    if (music && audioSynced && !music.paused) {
-      return START_BEAT * BEAT + music.currentTime;
-    }
     if (!started) return START_BEAT * BEAT;
     return START_BEAT * BEAT + (performance.now() / 1000 - pageT0);
+  }
+
+  function audioTargetTime(tMus) {
+    const elapsed = tMus - START_BEAT * BEAT;
+    if (elapsed < INTRO_SEC) return elapsed;
+    return INTRO_SEC + ((elapsed - INTRO_SEC) % PIECE_DUR);
+  }
+
+  function syncAudio(force) {
+    if (!music || !window.__audioReady || music.paused) return;
+    const target = audioTargetTime(musicalTime());
+    const maxT = INTRO_SEC + PIECE_DUR - 0.04;
+    if (target >= maxT) {
+      music.currentTime = INTRO_SEC;
+      return;
+    }
+    if (force || Math.abs(music.currentTime - target) > 0.12) {
+      music.currentTime = target;
+    }
   }
 
   function isBar22(plan) {
@@ -433,7 +453,7 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
   }
 
   function frame() {
-    if (music && !music.paused && !audioSynced) markAudioReady();
+    syncAudio(false);
     draw(musicalTime());
     requestAnimationFrame(frame);
   }
