@@ -558,6 +558,25 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     return plan % 2 === 1 ? { bg: LIGHT, fg: DARK } : { bg: DARK, fg: LIGHT };
   }
 
+  function drawBar22Platform(mid, scrollX, tMus, fg) {
+    const s = stepScreen(mid, scrollX, tMus);
+    const xR = s.x + s.w;
+    ctx.strokeStyle = fg;
+    ctx.beginPath();
+    ctx.moveTo(-40, s.y);
+    ctx.lineTo(xR, s.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(xR, s.y);
+    ctx.lineTo(xR, s.y + STEP_H + 40);
+    ctx.stroke();
+    ctx.fillStyle = fg;
+    ctx.font = "600 18px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(flatStepLabel(), s.x + s.w * 0.5, s.y + 22);
+  }
+
   function draw(tMus) {
     const scrollX = scrollXAt(tMus);
     const ball = ballState(tMus);
@@ -580,24 +599,8 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
 
       const s = stepScreen(i, scrollX, tMus);
       if (isBar22(plan)) {
+        // 22 平台在循环外单独画；滚落时只由 dropJoin 画竖线
         if (!onBar22 && i !== mid - 1) continue;
-        const xR = s.x + s.w;
-        if (onBar22) {
-          ctx.strokeStyle = fg;
-          ctx.beginPath();
-          ctx.moveTo(-40, s.y);
-          ctx.lineTo(xR, s.y);
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.moveTo(xR, s.y);
-          ctx.lineTo(xR, s.y + STEP_H + 40);
-          ctx.stroke();
-          ctx.fillStyle = fg;
-          ctx.font = "600 18px system-ui, sans-serif";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(flatStepLabel(), s.x + s.w * 0.5, s.y + 22);
-        }
         continue;
       }
 
@@ -615,16 +618,22 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
         ctx.lineTo(s.x + s.w, s.y + STEP_H + 40);
       }
       ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(s.x, s.y);
-      ctx.lineTo(s.x, s.y + (stepKind(plan) === "cycle" ? STEP_H + 40 : 20));
-      ctx.stroke();
+      if (s.x >= 0) {
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y);
+        ctx.lineTo(s.x, s.y + (stepKind(plan) === "cycle" ? STEP_H + 40 : 20));
+        ctx.stroke();
+      }
 
       ctx.fillStyle = fg;
       ctx.font = "600 18px system-ui, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(String(barNum), s.x + s.w * 0.5, s.y + 22);
+    }
+
+    if (onBar22) {
+      drawBar22Platform(mid, scrollX, tMus, fg);
     }
 
     if (inRestFall) {
