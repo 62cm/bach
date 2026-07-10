@@ -197,11 +197,11 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     return { x: ORIGIN_X + dx, y, w: stepWidth(plan), plan };
   }
 
-    function bouncePeak(hitIndex, batch) {
-      if (batch === "big") return H0 * Math.pow(RESTITUTION, hitIndex);
-      const idx = hitIndex >= 3 ? 2 : hitIndex;
-      return (H0 / 8) * Math.pow(RESTITUTION, idx);
-    }
+  function bouncePeak(hitIndex, batch) {
+    if (batch === "big") return H0 * Math.pow(RESTITUTION, hitIndex);
+    const idx = hitIndex >= 2 ? 1 : hitIndex;
+    return (H0 / 8) * Math.pow(RESTITUTION, idx);
+  }
 
   function arc(u, peak) {
     return peak * 4 * u * (1 - u);
