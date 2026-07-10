@@ -605,8 +605,8 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
         continue;
       }
 
-      // 右缘未进画才跳过；避免左侧只露出一条线/一截台阶
-      if (s.x > W + 40 || s.x + s.w < 0) continue;
+      // 左缘未进画才跳过；避免只露出竖线/一截（循环画 21 时左缘应在画内）
+      if (s.x > W + 40 || s.x < 0) continue;
       const barNum =
         STEPS[plan].bar ||
         Math.floor((STEPS[plan].slot != null ? STEPS[plan].slot : plan) / 2) + 1;
