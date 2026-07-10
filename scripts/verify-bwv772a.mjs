@@ -199,11 +199,11 @@ async function main() {
 
   console.log("BWV772a draw verification\n");
 
-  // --- 0. Before start: blank canvas, no steps ---
+  // --- 0. Before start: idle bar 22 preview (right block visible)
   const preStart = await samplePage(page);
-  const preFg = regionFgRatio(preStart, 0, 0, 479, 359, "#cccccc", "#0d0d0d");
-  if (preFg < 0.01) pass("pre-start: idle bg only, no step graphics");
-  else fail("pre-start: idle canvas", `fg ratio=${preFg.toFixed(3)}`);
+  const preLine = lineHasFg(preStart, 209, 330, 450, "#cccccc", "#0d0d0d", 4);
+  if (preLine) pass("pre-start: bar 22 idle platform visible");
+  else fail("pre-start: bar 22 idle platform visible", "no fg on right block");
 
   await page.evaluate(() => window.__TEST__.boot());
   const tOpen = (T.START_BEAT + T.INTRO_TOTAL_BEATS * 0.5) * T.BEAT;
@@ -221,7 +221,16 @@ async function main() {
   if (mOpen.onBar22 && mOpen.loopCount === 0) pass("opening: on bar 22, loopCount 0");
   else fail("opening: on bar 22, loopCount 0", JSON.stringify(mOpen));
 
-  if (lineHasFg(sampleOpen, y22, 0, mOpen.sCur.x + mOpen.sCur.w, fgOpen, bgOpen))
+  if (
+    lineHasFg(
+      sampleOpen,
+      y22,
+      Math.max(0, mOpen.sCur.x + 100),
+      mOpen.sCur.x + mOpen.sCur.w,
+      fgOpen,
+      bgOpen
+    )
+  )
     pass("opening: bar 22 horizontal platform visible");
   else fail("opening: bar 22 horizontal platform visible", `y=${y22} sCur=${JSON.stringify(mOpen.sCur)}`);
 

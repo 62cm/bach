@@ -589,12 +589,37 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     return plan % 2 === 1 ? { bg: LIGHT, fg: DARK } : { bg: DARK, fg: LIGHT };
   }
 
+  /** 首次播放：22 宽两块台阶，沿平台宽度用 bg 盖住左侧一块 */
+  function firstPlayBar22WidthMask(ctx, bg, s22) {
+    ctx.fillStyle = bg;
+    const leftOf = Math.max(0, s22.x + 40);
+    if (leftOf > 0) ctx.fillRect(-40, 0, leftOf, H);
+    ctx.fillRect(s22.x, 0, STEP_W_PER_2BEATS, H);
+  }
+
   function draw(tMus) {
     const idlePlan = N_STEPS - 1;
     const idleColors = colorsForBar(idlePlan);
     if (!started) {
-      ctx.fillStyle = idleColors.bg;
+      const tIdle = START_BEAT * BEAT;
+      const scrollX = cumWidthUpTo(idlePlan);
+      const { bg, fg } = idleColors;
+      ctx.fillStyle = bg;
       ctx.fillRect(0, 0, W, H);
+      const s22 = stepScreen(idlePlan, scrollX, tIdle);
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = fg;
+      ctx.beginPath();
+      ctx.moveTo(s22.x, s22.y);
+      ctx.lineTo(s22.x + s22.w, s22.y);
+      ctx.lineTo(s22.x + s22.w, s22.y + STEP_H + 40);
+      ctx.stroke();
+      ctx.fillStyle = fg;
+      ctx.font = "600 18px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("0", s22.x + s22.w * 0.5, s22.y + 22);
+      firstPlayBar22WidthMask(ctx, bg, s22);
       return;
     }
 
@@ -665,15 +690,9 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
       }
     }
 
-    // 首次播放：22 平台宽两块台阶，用当前背景色遮住左侧一块 + 左缘外区域
     if (loopCount === 0 && onBar22) {
       const s22 = stepScreen(mid, scrollX, tMus);
-      const maskRight = s22.x + s22.w - STEP_W_PER_2BEATS;
-      const maskW = Math.max(0, maskRight + 40);
-      if (maskW > 0) {
-        ctx.fillStyle = bg;
-        ctx.fillRect(-40, 0, maskW, H);
-      }
+      firstPlayBar22WidthMask(ctx, bg, s22);
     }
 
     ctx.beginPath();
