@@ -96,7 +96,6 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
   const PIECE_BEATS = TOTAL_BARS * 4;
   const PIECE_DUR = PIECE_BEATS * BEAT;
   const START_BEAT = (TOTAL_BARS - 1) * 4; // bar 22
-  const AUDIO_START = PIECE_DUR; // 开场 22 过完才出声
 
   const REST = 0.25;
   const BIG = [0.25, 0.5, 0.75];
@@ -113,6 +112,15 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
   const BX = W * 0.5;
   const ORIGIN_X = BX;
   const ORIGIN_Y = H * 0.58;
+
+  // 首次开场：球从画外匀速滚入；1 小节够则 4 拍，否则 8 拍（仅第一次，循环不再入画）
+  const ENTRANCE_X0 = -BALL_R - 40;
+  const ENTRANCE_SPEED = 220; // px/s
+  const ENTRANCE_DIST = BX - ENTRANCE_X0;
+  const INTRO_ROLL_BEATS =
+    ENTRANCE_DIST / (ENTRANCE_SPEED * BEAT) <= 4 ? 4 : 8;
+  const INTRO_EXTRA_BEATS = Math.max(0, INTRO_ROLL_BEATS - 4);
+  const AUDIO_START = PIECE_DUR; // 曲谱时间：22 过完才出声
 
   const N_STEPS = STEPS.length;
 
@@ -152,10 +160,46 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     return d;
   }
 
+  function isFirstOpening(tMus) {
+    const beatAbs = tMus / BEAT;
+    return (
+      Math.floor(beatAbs / PIECE_BEATS) === 0 &&
+      beatAbs >= START_BEAT &&
+      beatAbs < START_BEAT + INTRO_ROLL_BEATS
+    );
+  }
+
+  function firstIntroElapsedSec(tMus) {
+    if (!isFirstOpening(tMus)) return null;
+    return Math.max(0, tMus - START_BEAT * BEAT);
+  }
+
+  /** 曲谱/调度时钟：首次多出的无声小节不计入曲谱进度 */
+  function pieceBeatAbs(tMus) {
+    const beatAbs = tMus / BEAT;
+    if (INTRO_EXTRA_BEATS <= 0 || beatAbs < START_BEAT) return beatAbs;
+    if (beatAbs < START_BEAT + INTRO_ROLL_BEATS) return START_BEAT + stepBeats(N_STEPS - 1);
+    return beatAbs - INTRO_EXTRA_BEATS;
+  }
+
+  function schedNowMus(tMus) {
+    if (INTRO_EXTRA_BEATS <= 0) return tMus;
+    return pieceBeatAbs(tMus) * BEAT;
+  }
+
   function locate(tMus) {
-    let beatAbs = tMus / BEAT;
-    const loops = Math.floor(beatAbs / PIECE_BEATS);
-    let b = ((beatAbs % PIECE_BEATS) + PIECE_BEATS) % PIECE_BEATS;
+    const beatAbs = tMus / BEAT;
+    if (isFirstOpening(tMus)) {
+      const plan = N_STEPS - 1;
+      return {
+        stepIndex: plan,
+        plan,
+        beatInStep: beatAbs - START_BEAT,
+      };
+    }
+    const pieceBeat = pieceBeatAbs(tMus);
+    const loops = Math.floor(pieceBeat / PIECE_BEATS);
+    let b = ((pieceBeat % PIECE_BEATS) + PIECE_BEATS) % PIECE_BEATS;
     let acc = 0;
     for (let i = 0; i < N_STEPS; i++) {
       const dur = stepBeats(i);
@@ -173,6 +217,7 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
 
   function scrollXAt(tMus) {
     const { stepIndex, plan, beatInStep } = locate(tMus);
+    if (isFirstOpening(tMus)) return cumWidthUpTo(stepIndex);
     const u = beatInStep / stepBeats(plan);
     return cumWidthUpTo(stepIndex) + u * stepWidth(plan);
   }
@@ -302,8 +347,9 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
   function scheduleAhead() {
     if (!audioReady || !audioCtx || audioCtx.state !== "running") return;
     const nowMus = musicalTime();
-    const horizon = nowMus + 1.5;
-    seekSchedTo(nowMus - 0.05);
+    const schedMus = schedNowMus(nowMus);
+    const horizon = schedMus + 1.5;
+    seekSchedTo(schedMus - 0.05);
     for (let n = 0; n < SCORE.length * 4; n++) {
       const loop = Math.floor(schedCursor / SCORE.length);
       const ev = SCORE[schedCursor % SCORE.length];
@@ -312,11 +358,11 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
       const key = `${loop}:${ev.id}`;
       if (!played.has(key)) {
         played.add(key);
-        if (tMus >= AUDIO_START - 1e-6 && tMus >= nowMus - 0.05) {
+        if (tMus >= AUDIO_START - 1e-6 && tMus >= schedMus - 0.05) {
           const num = SUBJECT_TAGS[ev.id] || 0;
           let vel = ev.vel;
           if (num >= 1 && num <= 10) vel = ev.vel * subjectVelMult(num);
-          const when = audioCtx.currentTime + (tMus - nowMus);
+          const when = audioCtx.currentTime + (tMus - schedMus);
           playTone(ev.midi, when, ev.dur * BEAT, vel);
         }
       }
@@ -422,8 +468,13 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     const ground = cur.y - BALL_R;
     const groundPrev = prev.y - BALL_R;
 
-    // 0 台阶：球在中心，平台随节拍匀速滚入（整小节）
+    // 首次开场 0 台阶：球从画外匀速滚入；循环回到此不再滚入
     if (isBar22(plan)) {
+      const introElapsed = firstIntroElapsedSec(tMus);
+      if (introElapsed != null) {
+        const x = Math.min(BX, ENTRANCE_X0 + ENTRANCE_SPEED * introElapsed);
+        return { x, y: ground, bar: plan, impact: false };
+      }
       return { x: BX, y: ground, bar: plan, impact: false };
     }
 
