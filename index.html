@@ -37,19 +37,38 @@
       opacity: 0;
       pointer-events: none;
     }
+    #gate {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: grid;
+      place-items: center;
+      background: rgba(17, 17, 17, 0.88);
+      color: #eee;
+      font: 600 20px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+      letter-spacing: 0.04em;
+      text-align: center;
+      padding: 24px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #gate[hidden] { display: none; }
+    #gate-sub {
+      display: block;
+      margin-top: 10px;
+      font-weight: 400;
+      font-size: 14px;
+      opacity: 0.72;
+    }
+    #gate.needs-second #gate-sub { opacity: 1; color: #ffd966; }
   </style>
 </head>
 <body>
-  <audio id="music" src="bwv772a.m4a" preload="auto" playsinline autoplay></audio>
-  <script>
-(function () {
-  try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (_) {}
-  var a = document.getElementById("music");
-  a.volume = 1;
-  var p = a.play();
-  if (p && p.then) p.then(function () { window.__audioReady = true; }).catch(function () {});
-})();
-  </script>
+  <audio id="music" src="bwv772a.m4a" preload="auto" playsinline></audio>
+  <div id="gate" role="button" tabindex="0" aria-label="点按开始">
+    <span id="gate-title">点按开始</span>
+    <span id="gate-sub">动画与声音同时开始</span>
+  </div>
   <div id="wrap">
     <canvas id="stage" width="480" height="360"></canvas>
   </div>
@@ -216,71 +235,110 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
   }
 
   const music = document.getElementById("music");
+  const gate = document.getElementById("gate");
+  const gateTitle = document.getElementById("gate-title");
+  const gateSub = document.getElementById("gate-sub");
   const SILENT_WAV =
     "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
-  let started = true;
+  let started = false;
   let pageT0 = performance.now() / 1000;
+  let needsSecondTap = false;
+  let suppressClickUntil = 0;
 
-  function markAudioReady() {
-    if (!music || music.paused) return;
+  function hideGate() {
+    if (gate) gate.hidden = true;
+  }
+
+  function beginExperience() {
+    if (started) return;
+    started = true;
+    pageT0 = performance.now() / 1000;
     window.__audioReady = true;
+    hideGate();
     syncAudio(true);
   }
 
-  function startMusic() {
-    if (!music) return Promise.reject();
+  /** 必须在 touchend/click 回调里同步调用 play() */
+  function playMusicInGesture() {
+    try {
+      if (navigator.audioSession) navigator.audioSession.type = "playback";
+    } catch (_) {}
     music.volume = 1;
     music.muted = false;
-    return music.play().then(markAudioReady);
+    music.currentTime = 0;
+    return music.play();
   }
 
-  function bindGestureUnlock() {
-    if (window.__gestureUnlockBound) return;
-    window.__gestureUnlockBound = true;
-    const cleanup = () => {
-      ["touchend", "click", "keydown"].forEach((ev) =>
-        document.removeEventListener(ev, once, true)
-      );
-    };
-    const once = () => {
-      if (window.__audioReady && music && !music.paused) {
-        cleanup();
-        return;
+  function primeSilentInGesture() {
+    const u = document.createElement("audio");
+    u.playsInline = true;
+    u.muted = true;
+    u.src = SILENT_WAV;
+    u.play();
+    u.pause();
+    u.remove();
+  }
+
+  function onStartGesture(e) {
+    if (started) return;
+    if (e?.type === "click" && Date.now() < suppressClickUntil) return;
+    if (e?.type === "touchend") suppressClickUntil = Date.now() + 450;
+    if (e) e.preventDefault();
+
+    if (needsSecondTap) {
+      primeSilentInGesture();
+      const p = playMusicInGesture();
+      if (p && typeof p.then === "function") {
+        p.then(beginExperience).catch(showSecondTapHint);
       }
-      const unlock = document.createElement("audio");
-      unlock.src = SILENT_WAV;
-      unlock.playsInline = true;
-      unlock.muted = true;
-      unlock
-        .play()
-        .then(() => {
-          unlock.pause();
-          unlock.remove();
-          return startMusic();
-        })
-        .catch(() => startMusic())
-        .finally(cleanup);
-    };
-    ["touchend", "click", "keydown"].forEach((ev) =>
-      document.addEventListener(ev, once, { capture: true, passive: false })
-    );
-  }
-
-  function autoStart() {
-    started = true;
-    pageT0 = performance.now() / 1000;
-    if (window.__audioReady) {
-      markAudioReady();
+      if (!music.paused) beginExperience();
       return;
     }
-    startMusic().catch(bindGestureUnlock);
-    music?.addEventListener("playing", markAudioReady, { once: true });
-    music?.addEventListener("ended", () => {
-      if (!music) return;
-      music.currentTime = INTRO_SEC;
-      music.play().catch(() => {});
+
+    const p = playMusicInGesture();
+    if (p && typeof p.then === "function") {
+      p.then(beginExperience).catch(showSecondTapHint);
+    }
+    if (!music.paused) beginExperience();
+  }
+
+  function showSecondTapHint() {
+    if (started || !gate) return;
+    needsSecondTap = true;
+    gate.classList.add("needs-second");
+    gateTitle.textContent = "再点一次开始";
+    gateSub.textContent = "动画与声音将同时开始";
+  }
+
+  function setupGate() {
+    if (!gate) return;
+    const go = (e) => onStartGesture(e);
+    gate.addEventListener("touchend", go, { passive: false });
+    gate.addEventListener("click", go);
+    gate.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") onStartGesture(e);
     });
   }
+
+  function tryAutoplay() {
+    try {
+      if (navigator.audioSession) navigator.audioSession.type = "playback";
+    } catch (_) {}
+    const p = music.play();
+    if (p && typeof p.then === "function") {
+      p.then(beginExperience).catch(setupGate);
+    } else if (!music.paused) {
+      beginExperience();
+    } else {
+      setupGate();
+    }
+  }
+
+  music?.addEventListener("ended", () => {
+    if (!music || !started) return;
+    music.currentTime = INTRO_SEC;
+    music.play().catch(() => {});
+  });
 
   /** 动画主时钟；音频跟随映射（开场静音只播一次，曲谱按 PIECE_DUR 循环） */
   function musicalTime() {
@@ -458,11 +516,17 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     requestAnimationFrame(frame);
   }
 
-  autoStart();
+  function initStart() {
+    const isTouch =
+      "ontouchstart" in window || (navigator.maxTouchPoints || 0) > 0;
+    if (isTouch) setupGate();
+    else tryAutoplay();
+  }
+
+  initStart();
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && music?.paused) {
-      startMusic().catch(bindGestureUnlock);
-    }
+    if (document.visibilityState !== "visible" || !started) return;
+    if (music?.paused) playMusicInGesture().catch(() => {});
   });
   requestAnimationFrame(frame);
 })();
