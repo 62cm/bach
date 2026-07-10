@@ -26,6 +26,9 @@ const INJECT = `
     runTrack(t0, t1, step) {
       for (let t = t0; t <= t1; t += step) trackLoop(t);
     },
+    trackAt(t) {
+      trackLoop(t);
+    },
     drawAt(t) {
       trackLoop(t);
       draw(t);
@@ -172,7 +175,7 @@ async function main() {
   const page = await browser.newPage();
   await page.setViewport({ width: 520, height: 400, deviceScaleFactor: 1 });
   await page.goto(url, { waitUntil: "networkidle0" });
-  await page.evaluate(() => window.__TEST__.boot());
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(r)));
 
   const T = await page.evaluate(() => {
     const x = window.__TEST__;
@@ -196,7 +199,13 @@ async function main() {
 
   console.log("BWV772a draw verification\n");
 
-  // --- 1. First opening on bar 22 ---
+  // --- 0. Before start: blank canvas, no steps ---
+  const preStart = await samplePage(page);
+  const preFg = regionFgRatio(preStart, 0, 0, 479, 359, "#cccccc", "#333333");
+  if (preFg < 0.01) pass("pre-start: blank canvas, no step graphics");
+  else fail("pre-start: blank canvas", `fg ratio=${preFg.toFixed(3)}`);
+
+  await page.evaluate(() => window.__TEST__.boot());
   const tOpen = (T.START_BEAT + T.INTRO_TOTAL_BEATS * 0.5) * T.BEAT;
   const mOpen = await meta(page, tOpen);
   await page.evaluate(() => {
@@ -228,8 +237,13 @@ async function main() {
     const fg = m.plan % 2 === 1 ? "#0d0d0d" : "#cccccc";
     const bg = m.plan % 2 === 1 ? "#cccccc" : "#0d0d0d";
     if (m.sCur.x > 8) {
-      const stub = regionFgRatio(sample, 0, m.sCur.y - 2, m.sCur.x - 4, m.sCur.y + 2, fg, bg);
-      if (stub > 0.05) stubFail = `frac=${frac} stub=${stub.toFixed(3)} sCur.x=${m.sCur.x.toFixed(1)}`;
+      const xEnd = m.ball && m.ball.x < m.sCur.x - 10
+        ? m.ball.x - 10
+        : m.sCur.x - 4;
+      if (xEnd > 12) {
+        const stub = regionFgRatio(sample, 0, m.sCur.y - 1, xEnd, m.sCur.y + 1, fg, bg);
+        if (stub > 0.05) stubFail = `frac=${frac} stub=${stub.toFixed(3)} sCur.x=${m.sCur.x.toFixed(1)}`;
+      }
     }
   }
   if (!stubFail) pass("opening: no horizontal stub left of bar 22 during scroll");
@@ -300,7 +314,22 @@ async function main() {
   if (totalLift < -20 && maxStep < 25) pass("21→22: smooth camera lift during REST");
   else fail("21→22: smooth camera lift", `totalLift=${totalLift.toFixed(1)} maxStep=${maxStep.toFixed(1)}`);
 
-  // --- 3. 22→1 drop: no bar 22 horizontal, drop join present ---
+  const ballYs = [];
+  for (let b = 0; b <= T.REST; b += 0.02) {
+    const t = (T.START_BEAT + T.PIECE_BEATS + b) * T.BEAT;
+    const y = await page.evaluate((t) => window.__TEST__.ballState(t).y, t);
+    ballYs.push(y);
+  }
+  const i0 = Math.min(Math.ceil((0.28 * T.REST) / 0.02), ballYs.length - 1);
+  const ballDrop = ballYs.length ? ballYs[ballYs.length - 1] - ballYs[i0] : 0;
+  let maxBallStep = 0;
+  for (let i = i0 + 1; i < ballYs.length; i++) {
+    maxBallStep = Math.max(maxBallStep, Math.abs(ballYs[i] - ballYs[i - 1]));
+  }
+  if (ballDrop < -20 && maxBallStep < 25) pass("21→22: ball follows bar 22 platform lift");
+  else fail("21→22: ball lift", `drop=${ballDrop.toFixed(1)} maxStep=${maxBallStep.toFixed(1)}`);
+
+  // --- 3. 22→1 drop: bar 22 horizontal + drop join ---
   await page.evaluate(() => window.__TEST__.boot());
   let tFall = null;
   let mFall = null;
@@ -388,7 +417,7 @@ async function main() {
 
   console.log("");
   if (failures.length === 0) {
-    console.log(`All ${10} checks passed.`);
+    console.log(`All ${12} checks passed.`);
     process.exit(0);
   } else {
     console.log(`${failures.length} check(s) failed.`);
