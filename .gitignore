@@ -1,0 +1,13 @@
+# build / package
+dist/
+build/
+*.spec
+BWV772a.exe
+__pycache__/
+*.pyc
+.chrome-app/
+
+# local tooling
+.venv/
+venv/
+*.log

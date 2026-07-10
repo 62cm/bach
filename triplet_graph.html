@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<title>BWV 772 — 第一轮：标注三连音</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; font: 13px/1.35 system-ui, sans-serif; background: #121212; color: #e8e8e8; }
+header { padding: 12px 16px; background: #1e1e1e; border-bottom: 1px solid #333; position: sticky; top: 0; z-index: 2; }
+h1 { margin: 0 0 6px; font-size: 17px; }
+.legend { color: #aaa; max-width: 920px; }
+.legend b { color: #8cf; }
+#toolbar { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+button { padding: 6px 12px; cursor: pointer; border: 1px solid #555; background: #2a2a2a; color: #eee; border-radius: 4px; }
+button.primary { border-color: #6a9; background: #1a3a2a; }
+.bar-block { margin: 16px; padding: 12px; background: #1a1a1a; border: 1px solid #333; border-radius: 8px; }
+.bar-block h2 { margin: 0 0 8px; font-size: 15px; }
+canvas { display: block; width: 100%; max-width: 920px; height: auto; cursor: crosshair; background: #0d0d0d; border-radius: 4px; }
+.hint { color: #888; font-size: 12px; margin-top: 6px; }
+.group-list { margin-top: 8px; color: #aaa; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+<h1>BWV 772 — 第一轮：标注三连音</h1>
+<div class="legend">
+<b>谱源：</b>jsbach.net BWV 772 MIDI（David Grossman，1997）— 左右手对齐、时值准确。<br/>
+<b>操作：</b>在同一声部里点选属于同一组三连音的音符（如 F 和 D），点「完成此组」。<br/>
+<b>处理规则：</b>每组拆成 3 个音 — 音高线性插值（F…D → F E D），时间在组内均分。<br/>
+标完导出 <code>triplet_map.json</code>，再运行 <code>python expand_triplets.py</code>。
+</div>
+<div id="toolbar">
+<button id="finish" class="primary">完成此组</button>
+<button id="save">导出 triplet_map.json</button>
+<button id="undo">撤销</button>
+<button id="clear">清除全部</button>
+<span id="status">点选音符加入当前组</span>
+</div>
+<div id="groups" class="group-list"></div>
+</header>
+<div id="root"></div>
+<script>
+const BARS = [{"bar": 1, "rh": [{"id": "rh-0", "beat": 0.25, "midi": 72, "name": "C5", "dur": 0.23}, {"id": "rh-1", "beat": 0.5, "midi": 74, "name": "D5", "dur": 0.23}, {"id": "rh-2", "beat": 0.75, "midi": 76, "name": "E5", "dur": 0.23}, {"id": "rh-3", "beat": 1.0, "midi": 77, "name": "F5", "dur": 0.23}, {"id": "rh-4", "beat": 1.25, "midi": 74, "name": "D5", "dur": 0.23}, {"id": "rh-5", "beat": 1.5, "midi": 76, "name": "E5", "dur": 0.23}, {"id": "rh-6", "beat": 1.75, "midi": 72, "name": "C5", "dur": 0.23}, {"id": "rh-7", "beat": 2.0, "midi": 79, "name": "G5", "dur": 0.46}, {"id": "rh-8", "beat": 2.5, "midi": 84, "name": "C6", "dur": 0.46}, {"id": "rh-9", "beat": 3.0, "midi": 84, "name": "C6", "dur": 0.076667}, {"id": "rh-10", "beat": 3.0833, "midi": 83, "name": "B5", "dur": 0.076667}, {"id": "rh-11", "beat": 3.1667, "midi": 84, "name": "C6", "dur": 0.076667}, {"id": "rh-12", "beat": 3.25, "midi": 83, "name": "B5", "dur": 0.23}, {"id": "rh-13", "beat": 3.5, "midi": 84, "name": "C6", "dur": 0.46}], "lh": [{"id": "lh-0", "beat": 2.25, "midi": 48, "name": "C3", "dur": 0.23}, {"id": "lh-1", "beat": 2.5, "midi": 50, "name": "D3", "dur": 0.23}, {"id": "lh-2", "beat": 2.75, "midi": 52, "name": "E3", "dur": 0.23}, {"id": "lh-3", "beat": 3.0, "midi": 53, "name": "F3", "dur": 0.23}, {"id": "lh-4", "beat": 3.25, "midi": 50, "name": "D3", "dur": 0.23}, {"id": "lh-5", "beat": 3.5, "midi": 52, "name": "E3", "dur": 0.23}, {"id": "lh-6", "beat": 3.75, "midi": 48, "name": "C3", "dur": 0.23}]}, {"bar": 2, "rh": [{"id": "rh-14", "beat": 0.0, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-15", "beat": 0.25, "midi": 79, "name": "G5", "dur": 0.23}, {"id": "rh-16", "beat": 0.5, "midi": 81, "name": "A5", "dur": 0.23}, {"id": "rh-17", "beat": 0.75, "midi": 83, "name": "B5", "dur": 0.23}, {"id": "rh-18", "beat": 1.0, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-19", "beat": 1.25, "midi": 81, "name": "A5", "dur": 0.23}, {"id": "rh-20", "beat": 1.5, "midi": 83, "name": "B5", "dur": 0.23}, {"id": "rh-21", "beat": 1.75, "midi": 79, "name": "G5", "dur": 0.23}, {"id": "rh-22", "beat": 2.0, "midi": 86, "name": "D6", "dur": 0.46}, {"id": "rh-23", "beat": 2.5, "midi": 91, "name": "G6", "dur": 0.46}, {"id": "rh-24", "beat": 3.0, "midi": 91, "name": "G6", "dur": 0.076667}, {"id": "rh-25", "beat": 3.0833, "midi": 89, "name": "F6", "dur": 0.076667}, {"id": "rh-26", "beat": 3.1667, "midi": 91, "name": "G6", "dur": 0.076667}, {"id": "rh-27", "beat": 3.25, "midi": 89, "name": "F6", "dur": 0.23}, {"id": "rh-28", "beat": 3.5, "midi": 91, "name": "G6", "dur": 0.46}], "lh": [{"id": "lh-7", "beat": 0.0, "midi": 55, "name": "G3", "dur": 0.46}, {"id": "lh-8", "beat": 0.5, "midi": 43, "name": "G2", "dur": 0.46}, {"id": "lh-9", "beat": 2.25, "midi": 55, "name": "G3", "dur": 0.23}, {"id": "lh-10", "beat": 2.5, "midi": 57, "name": "A3", "dur": 0.23}, {"id": "lh-11", "beat": 2.75, "midi": 59, "name": "B3", "dur": 0.23}, {"id": "lh-12", "beat": 3.0, "midi": 60, "name": "C4", "dur": 0.23}, {"id": "lh-13", "beat": 3.25, "midi": 57, "name": "A3", "dur": 0.23}, {"id": "lh-14", "beat": 3.5, "midi": 59, "name": "B3", "dur": 0.23}, {"id": "lh-15", "beat": 3.75, "midi": 55, "name": "G3", "dur": 0.23}]}, {"bar": 3, "rh": [{"id": "rh-29", "beat": 0.0, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-30", "beat": 0.25, "midi": 93, "name": "A6", "dur": 0.23}, {"id": "rh-31", "beat": 0.5, "midi": 91, "name": "G6", "dur": 0.23}, {"id": "rh-32", "beat": 0.75, "midi": 89, "name": "F6", "dur": 0.23}, {"id": "rh-33", "beat": 1.0, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-34", "beat": 1.25, "midi": 91, "name": "G6", "dur": 0.23}, {"id": "rh-35", "beat": 1.5, "midi": 89, "name": "F6", "dur": 0.23}, {"id": "rh-36", "beat": 1.75, "midi": 93, "name": "A6", "dur": 0.23}, {"id": "rh-37", "beat": 2.0, "midi": 91, "name": "G6", "dur": 0.23}, {"id": "rh-38", "beat": 2.25, "midi": 89, "name": "F6", "dur": 0.23}, {"id": "rh-39", "beat": 2.5, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-40", "beat": 2.75, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-41", "beat": 3.0, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-42", "beat": 3.25, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-43", "beat": 3.5, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-44", "beat": 3.75, "midi": 89, "name": "F6", "dur": 0.23}], "lh": [{"id": "lh-16", "beat": 0.0, "midi": 60, "name": "C4", "dur": 0.46}, {"id": "lh-17", "beat": 0.5, "midi": 59, "name": "B3", "dur": 0.46}, {"id": "lh-18", "beat": 1.0, "midi": 60, "name": "C4", "dur": 0.46}, {"id": "lh-19", "beat": 1.5, "midi": 62, "name": "D4", "dur": 0.46}, {"id": "lh-20", "beat": 2.0, "midi": 64, "name": "E4", "dur": 0.46}, {"id": "lh-21", "beat": 2.5, "midi": 55, "name": "G3", "dur": 0.46}, {"id": "lh-22", "beat": 3.0, "midi": 57, "name": "A3", "dur": 0.46}, {"id": "lh-23", "beat": 3.5, "midi": 59, "name": "B3", "dur": 0.46}]}, {"bar": 4, "rh": [{"id": "rh-45", "beat": 0.0, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-46", "beat": 0.25, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-47", "beat": 0.5, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-48", "beat": 0.75, "midi": 83, "name": "B5", "dur": 0.23}, {"id": "rh-49", "beat": 1.0, "midi": 81, "name": "A5", "dur": 0.23}, {"id": "rh-50", "beat": 1.25, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-51", "beat": 1.5, "midi": 83, "name": "B5", "dur": 0.23}, {"id": "rh-52", "beat": 1.75, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-53", "beat": 2.0, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-54", "beat": 2.25, "midi": 83, "name": "B5", "dur": 0.23}, {"id": "rh-55", "beat": 2.5, "midi": 81, "name": "A5", "dur": 0.23}, {"id": "rh-56", "beat": 2.75, "midi": 79, "name": "G5", "dur": 0.23}, {"id": "rh-57", "beat": 3.0, "midi": 78, "name": "F#5", "dur": 0.23}, {"id": "rh-58", "beat": 3.25, "midi": 81, "name": "A5", "dur": 0.23}, {"id": "rh-59", "beat": 3.5, "midi": 79, "name": "G5", "dur": 0.23}, {"id": "rh-60", "beat": 3.75, "midi": 83, "name": "B5", "dur": 0.23}], "lh": [{"id": "lh-24", "beat": 0.0, "midi": 60, "name": "C4", "dur": 0.46}, {"id": "lh-25", "beat": 0.5, "midi": 52, "name": "E3", "dur": 0.46}, {"id": "lh-26", "beat": 1.0, "midi": 54, "name": "F#3", "dur": 0.46}, {"id": "lh-27", "beat": 1.5, "midi": 55, "name": "G3", "dur": 0.46}, {"id": "lh-28", "beat": 2.0, "midi": 57, "name": "A3", "dur": 0.46}, {"id": "lh-29", "beat": 2.5, "midi": 59, "name": "B3", "dur": 0.46}, {"id": "lh-30", "beat": 3.0, "midi": 60, "name": "C4", "dur": 1.111667}]}, {"bar": 5, "rh": [{"id": "rh-61", "beat": 0.0, "midi": 81, "name": "A5", "dur": 0.46}, {"id": "rh-62", "beat": 0.5, "midi": 74, "name": "D5", "dur": 0.46}, {"id": "rh-63", "beat": 1.0, "midi": 84, "name": "C6", "dur": 0.115}, {"id": "rh-64", "beat": 1.125, "midi": 83, "name": "B5", "dur": 0.115}, {"id": "rh-65", "beat": 1.25, "midi": 84, "name": "C6", "dur": 0.46}, {"id": "rh-66", "beat": 1.75, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-67", "beat": 2.0, "midi": 83, "name": "B5", "dur": 0.23}, {"id": "rh-68", "beat": 2.25, "midi": 81, "name": "A5", "dur": 0.23}, {"id": "rh-69", "beat": 2.5, "midi": 79, "name": "G5", "dur": 0.23}, {"id": "rh-70", "beat": 2.75, "midi": 78, "name": "F#5", "dur": 0.23}, {"id": "rh-71", "beat": 3.0, "midi": 76, "name": "E5", "dur": 0.23}, {"id": "rh-72", "beat": 3.25, "midi": 79, "name": "G5", "dur": 0.23}, {"id": "rh-73", "beat": 3.5, "midi": 78, "name": "F#5", "dur": 0.23}, {"id": "rh-74", "beat": 3.75, "midi": 81, "name": "A5", "dur": 0.23}], "lh": [{"id": "lh-31", "beat": 0.25, "midi": 50, "name": "D3", "dur": 0.23}, {"id": "lh-32", "beat": 0.5, "midi": 52, "name": "E3", "dur": 0.23}, {"id": "lh-33", "beat": 0.75, "midi": 54, "name": "F#3", "dur": 0.23}, {"id": "lh-34", "beat": 1.0, "midi": 55, "name": "G3", "dur": 0.23}, {"id": "lh-35", "beat": 1.25, "midi": 52, "name": "E3", "dur": 0.23}, {"id": "lh-36", "beat": 1.5, "midi": 54, "name": "F#3", "dur": 0.23}, {"id": "lh-37", "beat": 1.75, "midi": 50, "name": "D3", "dur": 0.23}, {"id": "lh-38", "beat": 2.0, "midi": 55, "name": "G3", "dur": 0.46}, {"id": "lh-39", "beat": 2.5, "midi": 47, "name": "B2", "dur": 0.46}, {"id": "lh-40", "beat": 3.0, "midi": 48, "name": "C3", "dur": 0.46}, {"id": "lh-41", "beat": 3.5, "midi": 50, "name": "D3", "dur": 0.46}]}, {"bar": 6, "rh": [{"id": "rh-75", "beat": 0.0, "midi": 79, "name": "G5", "dur": 0.23}, {"id": "rh-76", "beat": 0.25, "midi": 83, "name": "B5", "dur": 0.23}, {"id": "rh-77", "beat": 0.5, "midi": 81, "name": "A5", "dur": 0.23}, {"id": "rh-78", "beat": 0.75, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-79", "beat": 1.0, "midi": 83, "name": "B5", "dur": 0.23}, {"id": "rh-80", "beat": 1.25, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-81", "beat": 1.5, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-82", "beat": 1.75, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-83", "beat": 2.0, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-84", "beat": 2.25, "midi": 83, "name": "B5", "dur": 0.115}, {"id": "rh-85", "beat": 2.375, "midi": 84, "name": "C6", "dur": 0.115}, {"id": "rh-86", "beat": 2.5, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-87", "beat": 2.75, "midi": 91, "name": "G6", "dur": 0.23}, {"id": "rh-88", "beat": 3.0, "midi": 84, "name": "C6", "dur": 0.076667}, {"id": "rh-89", "beat": 3.0833, "midi": 83, "name": "B5", "dur": 0.076667}, {"id": "rh-90", "beat": 3.1667, "midi": 84, "name": "C6", "dur": 0.076667}, {"id": "rh-91", "beat": 3.25, "midi": 83, "name": "B5", "dur": 0.23}, {"id": "rh-92", "beat": 3.5, "midi": 81, "name": "A5", "dur": 0.23}, {"id": "rh-93", "beat": 3.75, "midi": 79, "name": "G5", "dur": 0.23}], "lh": [{"id": "lh-42", "beat": 0.0, "midi": 52, "name": "E3", "dur": 0.46}, {"id": "lh-43", "beat": 0.5, "midi": 54, "name": "F#3", "dur": 0.46}, {"id": "lh-44", "beat": 1.0, "midi": 55, "name": "G3", "dur": 0.46}, {"id": "lh-45", "beat": 1.5, "midi": 52, "name": "E3", "dur": 0.46}, {"id": "lh-46", "beat": 2.0, "midi": 47, "name": "B2", "dur": 0.69}, {"id": "lh-47", "beat": 2.75, "midi": 48, "name": "C3", "dur": 0.23}, {"id": "lh-48", "beat": 3.0, "midi": 50, "name": "D3", "dur": 0.46}, {"id": "lh-49", "beat": 3.5, "midi": 38, "name": "D2", "dur": 0.46}]}, {"bar": 7, "rh": [{"id": "rh-94", "beat": 0.0, "midi": 79, "name": "G5", "dur": 0.46}, {"id": "rh-95", "beat": 2.25, "midi": 79, "name": "G5", "dur": 0.23}, {"id": "rh-96", "beat": 2.5, "midi": 81, "name": "A5", "dur": 0.23}, {"id": "rh-97", "beat": 2.75, "midi": 83, "name": "B5", "dur": 0.23}, {"id": "rh-98", "beat": 3.0, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-99", "beat": 3.25, "midi": 81, "name": "A5", "dur": 0.23}, {"id": "rh-100", "beat": 3.5, "midi": 83, "name": "B5", "dur": 0.23}, {"id": "rh-101", "beat": 3.75, "midi": 79, "name": "G5", "dur": 0.23}], "lh": [{"id": "lh-50", "beat": 0.25, "midi": 43, "name": "G2", "dur": 0.23}, {"id": "lh-51", "beat": 0.5, "midi": 45, "name": "A2", "dur": 0.23}, {"id": "lh-52", "beat": 0.75, "midi": 47, "name": "B2", "dur": 0.23}, {"id": "lh-53", "beat": 1.0, "midi": 48, "name": "C3", "dur": 0.23}, {"id": "lh-54", "beat": 1.25, "midi": 45, "name": "A2", "dur": 0.23}, {"id": "lh-55", "beat": 1.5, "midi": 47, "name": "B2", "dur": 0.23}, {"id": "lh-56", "beat": 1.75, "midi": 43, "name": "G2", "dur": 0.23}, {"id": "lh-57", "beat": 2.0, "midi": 50, "name": "D3", "dur": 0.46}, {"id": "lh-58", "beat": 2.5, "midi": 55, "name": "G3", "dur": 0.46}, {"id": "lh-59", "beat": 3.0, "midi": 54, "name": "F#3", "dur": 0.46}, {"id": "lh-60", "beat": 3.5, "midi": 55, "name": "G3", "dur": 0.46}]}, {"bar": 8, "rh": [{"id": "rh-102", "beat": 0.0, "midi": 79, "name": "G5", "dur": 0.076667}, {"id": "rh-103", "beat": 0.0833, "midi": 78, "name": "F#5", "dur": 0.076667}, {"id": "rh-104", "beat": 0.1667, "midi": 79, "name": "G5", "dur": 0.076667}, {"id": "rh-105", "beat": 0.25, "midi": 78, "name": "F#5", "dur": 0.23}, {"id": "rh-106", "beat": 2.25, "midi": 81, "name": "A5", "dur": 0.23}, {"id": "rh-107", "beat": 2.5, "midi": 83, "name": "B5", "dur": 0.23}, {"id": "rh-108", "beat": 2.75, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-109", "beat": 3.0, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-110", "beat": 3.25, "midi": 83, "name": "B5", "dur": 0.23}, {"id": "rh-111", "beat": 3.5, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-112", "beat": 3.75, "midi": 81, "name": "A5", "dur": 0.23}], "lh": [{"id": "lh-61", "beat": 0.0, "midi": 57, "name": "A3", "dur": 0.23}, {"id": "lh-62", "beat": 0.25, "midi": 50, "name": "D3", "dur": 0.23}, {"id": "lh-63", "beat": 0.5, "midi": 52, "name": "E3", "dur": 0.23}, {"id": "lh-64", "beat": 0.75, "midi": 54, "name": "F#3", "dur": 0.23}, {"id": "lh-65", "beat": 1.0, "midi": 55, "name": "G3", "dur": 0.23}, {"id": "lh-66", "beat": 1.25, "midi": 52, "name": "E3", "dur": 0.23}, {"id": "lh-67", "beat": 1.5, "midi": 54, "name": "F#3", "dur": 0.23}, {"id": "lh-68", "beat": 1.75, "midi": 50, "name": "D3", "dur": 0.23}, {"id": "lh-69", "beat": 2.0, "midi": 57, "name": "A3", "dur": 0.46}, {"id": "lh-70", "beat": 2.5, "midi": 62, "name": "D4", "dur": 0.46}, {"id": "lh-71", "beat": 3.0, "midi": 60, "name": "C4", "dur": 0.46}, {"id": "lh-72", "beat": 3.5, "midi": 62, "name": "D4", "dur": 0.46}]}, {"bar": 9, "rh": [{"id": "rh-113", "beat": 0.0, "midi": 83, "name": "B5", "dur": 0.46}, {"id": "rh-114", "beat": 2.25, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-115", "beat": 2.5, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-116", "beat": 2.75, "midi": 83, "name": "B5", "dur": 0.23}, {"id": "rh-117", "beat": 3.0, "midi": 81, "name": "A5", "dur": 0.23}, {"id": "rh-118", "beat": 3.25, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-119", "beat": 3.5, "midi": 83, "name": "B5", "dur": 0.23}, {"id": "rh-120", "beat": 3.75, "midi": 86, "name": "D6", "dur": 0.23}], "lh": [{"id": "lh-73", "beat": 0.0, "midi": 55, "name": "G3", "dur": 0.23}, {"id": "lh-74", "beat": 0.25, "midi": 67, "name": "G4", "dur": 0.23}, {"id": "lh-75", "beat": 0.5, "midi": 65, "name": "F4", "dur": 0.23}, {"id": "lh-76", "beat": 0.75, "midi": 64, "name": "E4", "dur": 0.23}, {"id": "lh-77", "beat": 1.0, "midi": 62, "name": "D4", "dur": 0.23}, {"id": "lh-78", "beat": 1.25, "midi": 65, "name": "F4", "dur": 0.23}, {"id": "lh-79", "beat": 1.5, "midi": 64, "name": "E4", "dur": 0.23}, {"id": "lh-80", "beat": 1.75, "midi": 67, "name": "G4", "dur": 0.23}, {"id": "lh-81", "beat": 2.0, "midi": 65, "name": "F4", "dur": 0.46}, {"id": "lh-82", "beat": 2.5, "midi": 64, "name": "E4", "dur": 0.46}, {"id": "lh-83", "beat": 3.0, "midi": 65, "name": "F4", "dur": 0.46}, {"id": "lh-84", "beat": 3.5, "midi": 62, "name": "D4", "dur": 0.46}]}, {"bar": 10, "rh": [{"id": "rh-121", "beat": 0.0, "midi": 84, "name": "C6", "dur": 0.46}, {"id": "rh-122", "beat": 2.25, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-123", "beat": 2.5, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-124", "beat": 2.75, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-125", "beat": 3.0, "midi": 83, "name": "B5", "dur": 0.23}, {"id": "rh-126", "beat": 3.25, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-127", "beat": 3.5, "midi": 85, "name": "C#6", "dur": 0.23}, {"id": "rh-128", "beat": 3.75, "midi": 88, "name": "E6", "dur": 0.23}], "lh": [{"id": "lh-85", "beat": 0.0, "midi": 64, "name": "E4", "dur": 0.23}, {"id": "lh-86", "beat": 0.25, "midi": 69, "name": "A4", "dur": 0.23}, {"id": "lh-87", "beat": 0.5, "midi": 67, "name": "G4", "dur": 0.23}, {"id": "lh-88", "beat": 0.75, "midi": 65, "name": "F4", "dur": 0.23}, {"id": "lh-89", "beat": 1.0, "midi": 64, "name": "E4", "dur": 0.23}, {"id": "lh-90", "beat": 1.25, "midi": 67, "name": "G4", "dur": 0.23}, {"id": "lh-91", "beat": 1.5, "midi": 65, "name": "F4", "dur": 0.23}, {"id": "lh-92", "beat": 1.75, "midi": 69, "name": "A4", "dur": 0.23}, {"id": "lh-93", "beat": 2.0, "midi": 67, "name": "G4", "dur": 0.46}, {"id": "lh-94", "beat": 2.5, "midi": 65, "name": "F4", "dur": 0.46}, {"id": "lh-95", "beat": 3.0, "midi": 67, "name": "G4", "dur": 0.46}, {"id": "lh-96", "beat": 3.5, "midi": 64, "name": "E4", "dur": 0.46}]}, {"bar": 11, "rh": [{"id": "rh-129", "beat": 0.0, "midi": 86, "name": "D6", "dur": 0.46}, {"id": "rh-130", "beat": 0.5, "midi": 85, "name": "C#6", "dur": 0.46}, {"id": "rh-131", "beat": 1.0, "midi": 86, "name": "D6", "dur": 0.46}, {"id": "rh-132", "beat": 1.5, "midi": 88, "name": "E6", "dur": 0.46}, {"id": "rh-133", "beat": 2.0, "midi": 89, "name": "F6", "dur": 0.46}, {"id": "rh-134", "beat": 2.5, "midi": 81, "name": "A5", "dur": 0.46}, {"id": "rh-135", "beat": 3.0, "midi": 83, "name": "B5", "dur": 0.46}, {"id": "rh-136", "beat": 3.5, "midi": 85, "name": "C#6", "dur": 0.46}], "lh": [{"id": "lh-97", "beat": 0.0, "midi": 65, "name": "F4", "dur": 0.23}, {"id": "lh-98", "beat": 0.25, "midi": 70, "name": "A#4", "dur": 0.23}, {"id": "lh-99", "beat": 0.5, "midi": 69, "name": "A4", "dur": 0.23}, {"id": "lh-100", "beat": 0.75, "midi": 67, "name": "G4", "dur": 0.23}, {"id": "lh-101", "beat": 1.0, "midi": 65, "name": "F4", "dur": 0.23}, {"id": "lh-102", "beat": 1.25, "midi": 69, "name": "A4", "dur": 0.23}, {"id": "lh-103", "beat": 1.5, "midi": 67, "name": "G4", "dur": 0.23}, {"id": "lh-104", "beat": 1.75, "midi": 70, "name": "A#4", "dur": 0.23}, {"id": "lh-105", "beat": 2.0, "midi": 69, "name": "A4", "dur": 0.23}, {"id": "lh-106", "beat": 2.25, "midi": 67, "name": "G4", "dur": 0.23}, {"id": "lh-107", "beat": 2.5, "midi": 65, "name": "F4", "dur": 0.23}, {"id": "lh-108", "beat": 2.75, "midi": 64, "name": "E4", "dur": 0.23}, {"id": "lh-109", "beat": 3.0, "midi": 62, "name": "D4", "dur": 0.23}, {"id": "lh-110", "beat": 3.25, "midi": 65, "name": "F4", "dur": 0.23}, {"id": "lh-111", "beat": 3.5, "midi": 64, "name": "E4", "dur": 0.23}, {"id": "lh-112", "beat": 3.75, "midi": 67, "name": "G4", "dur": 0.23}]}, {"bar": 12, "rh": [{"id": "rh-137", "beat": 0.0, "midi": 86, "name": "D6", "dur": 0.46}, {"id": "rh-138", "beat": 0.5, "midi": 78, "name": "F#5", "dur": 0.46}, {"id": "rh-139", "beat": 1.0, "midi": 80, "name": "G#5", "dur": 0.46}, {"id": "rh-140", "beat": 1.5, "midi": 81, "name": "A5", "dur": 0.46}, {"id": "rh-141", "beat": 2.0, "midi": 83, "name": "B5", "dur": 0.46}, {"id": "rh-142", "beat": 2.5, "midi": 84, "name": "C6", "dur": 0.46}, {"id": "rh-143", "beat": 3.0, "midi": 86, "name": "D6", "dur": 1.15}], "lh": [{"id": "lh-113", "beat": 0.0, "midi": 65, "name": "F4", "dur": 0.23}, {"id": "lh-114", "beat": 0.25, "midi": 64, "name": "E4", "dur": 0.23}, {"id": "lh-115", "beat": 0.5, "midi": 62, "name": "D4", "dur": 0.23}, {"id": "lh-116", "beat": 0.75, "midi": 60, "name": "C4", "dur": 0.23}, {"id": "lh-117", "beat": 1.0, "midi": 59, "name": "B3", "dur": 0.23}, {"id": "lh-118", "beat": 1.25, "midi": 62, "name": "D4", "dur": 0.23}, {"id": "lh-119", "beat": 1.5, "midi": 60, "name": "C4", "dur": 0.23}, {"id": "lh-120", "beat": 1.75, "midi": 64, "name": "E4", "dur": 0.23}, {"id": "lh-121", "beat": 2.0, "midi": 62, "name": "D4", "dur": 0.23}, {"id": "lh-122", "beat": 2.25, "midi": 60, "name": "C4", "dur": 0.23}, {"id": "lh-123", "beat": 2.5, "midi": 59, "name": "B3", "dur": 0.23}, {"id": "lh-124", "beat": 2.75, "midi": 57, "name": "A3", "dur": 0.23}, {"id": "lh-125", "beat": 3.0, "midi": 56, "name": "G#3", "dur": 0.23}, {"id": "lh-126", "beat": 3.25, "midi": 59, "name": "B3", "dur": 0.23}, {"id": "lh-127", "beat": 3.5, "midi": 57, "name": "A3", "dur": 0.23}, {"id": "lh-128", "beat": 3.75, "midi": 60, "name": "C4", "dur": 0.23}]}, {"bar": 13, "rh": [{"id": "rh-144", "beat": 0.25, "midi": 76, "name": "E5", "dur": 0.23}, {"id": "rh-145", "beat": 0.5, "midi": 78, "name": "F#5", "dur": 0.23}, {"id": "rh-146", "beat": 0.75, "midi": 80, "name": "G#5", "dur": 0.23}, {"id": "rh-147", "beat": 1.0, "midi": 81, "name": "A5", "dur": 0.23}, {"id": "rh-148", "beat": 1.25, "midi": 78, "name": "F#5", "dur": 0.23}, {"id": "rh-149", "beat": 1.5, "midi": 80, "name": "G#5", "dur": 0.23}, {"id": "rh-150", "beat": 1.75, "midi": 76, "name": "E5", "dur": 0.23}, {"id": "rh-151", "beat": 2.0, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-152", "beat": 2.25, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-153", "beat": 2.5, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-154", "beat": 2.75, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-155", "beat": 3.0, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-156", "beat": 3.25, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-157", "beat": 3.5, "midi": 83, "name": "B5", "dur": 0.23}, {"id": "rh-158", "beat": 3.75, "midi": 86, "name": "D6", "dur": 0.23}], "lh": [{"id": "lh-129", "beat": 0.0, "midi": 59, "name": "B3", "dur": 0.46}, {"id": "lh-130", "beat": 0.5, "midi": 52, "name": "E3", "dur": 0.46}, {"id": "lh-131", "beat": 1.0, "midi": 62, "name": "D4", "dur": 0.115}, {"id": "lh-132", "beat": 1.125, "midi": 60, "name": "C4", "dur": 0.115}, {"id": "lh-133", "beat": 1.25, "midi": 62, "name": "D4", "dur": 0.46}, {"id": "lh-134", "beat": 1.75, "midi": 64, "name": "E4", "dur": 0.23}, {"id": "lh-135", "beat": 2.0, "midi": 60, "name": "C4", "dur": 0.23}, {"id": "lh-136", "beat": 2.25, "midi": 59, "name": "B3", "dur": 0.23}, {"id": "lh-137", "beat": 2.5, "midi": 57, "name": "A3", "dur": 0.23}, {"id": "lh-138", "beat": 2.75, "midi": 55, "name": "G3", "dur": 0.23}, {"id": "lh-139", "beat": 3.0, "midi": 54, "name": "F#3", "dur": 0.23}, {"id": "lh-140", "beat": 3.25, "midi": 57, "name": "A3", "dur": 0.23}, {"id": "lh-141", "beat": 3.5, "midi": 56, "name": "G#3", "dur": 0.23}, {"id": "lh-142", "beat": 3.75, "midi": 59, "name": "B3", "dur": 0.23}]}, {"bar": 14, "rh": [{"id": "rh-159", "beat": 0.0, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-160", "beat": 0.25, "midi": 93, "name": "A6", "dur": 0.23}, {"id": "rh-161", "beat": 0.5, "midi": 92, "name": "G#6", "dur": 0.23}, {"id": "rh-162", "beat": 0.75, "midi": 95, "name": "B6", "dur": 0.23}, {"id": "rh-163", "beat": 1.0, "midi": 93, "name": "A6", "dur": 0.23}, {"id": "rh-164", "beat": 1.25, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-165", "beat": 1.5, "midi": 89, "name": "F6", "dur": 0.23}, {"id": "rh-166", "beat": 1.75, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-167", "beat": 2.0, "midi": 80, "name": "G#5", "dur": 0.23}, {"id": "rh-168", "beat": 2.25, "midi": 89, "name": "F6", "dur": 0.23}, {"id": "rh-169", "beat": 2.5, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-170", "beat": 2.75, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-171", "beat": 3.0, "midi": 84, "name": "C6", "dur": 0.46}, {"id": "rh-172", "beat": 3.5, "midi": 83, "name": "B5", "dur": 0.23}, {"id": "rh-173", "beat": 3.75, "midi": 81, "name": "A5", "dur": 0.23}], "lh": [{"id": "lh-143", "beat": 0.0, "midi": 57, "name": "A3", "dur": 0.23}, {"id": "lh-144", "beat": 0.25, "midi": 60, "name": "C4", "dur": 0.23}, {"id": "lh-145", "beat": 0.5, "midi": 59, "name": "B3", "dur": 0.23}, {"id": "lh-146", "beat": 0.75, "midi": 62, "name": "D4", "dur": 0.23}, {"id": "lh-147", "beat": 1.0, "midi": 60, "name": "C4", "dur": 0.23}, {"id": "lh-148", "beat": 1.25, "midi": 64, "name": "E4", "dur": 0.23}, {"id": "lh-149", "beat": 1.5, "midi": 62, "name": "D4", "dur": 0.23}, {"id": "lh-150", "beat": 1.75, "midi": 65, "name": "F4", "dur": 0.23}, {"id": "lh-151", "beat": 2.0, "midi": 64, "name": "E4", "dur": 0.46}, {"id": "lh-152", "beat": 2.5, "midi": 57, "name": "A3", "dur": 0.46}, {"id": "lh-153", "beat": 3.0, "midi": 64, "name": "E4", "dur": 0.46}, {"id": "lh-154", "beat": 3.5, "midi": 52, "name": "E3", "dur": 0.46}]}, {"bar": 15, "rh": [{"id": "rh-174", "beat": 0.0, "midi": 81, "name": "A5", "dur": 0.23}, {"id": "rh-175", "beat": 0.25, "midi": 93, "name": "A6", "dur": 0.23}, {"id": "rh-176", "beat": 0.5, "midi": 91, "name": "G6", "dur": 0.23}, {"id": "rh-177", "beat": 0.75, "midi": 89, "name": "F6", "dur": 0.23}, {"id": "rh-178", "beat": 1.0, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-179", "beat": 1.25, "midi": 91, "name": "G6", "dur": 0.23}, {"id": "rh-180", "beat": 1.5, "midi": 89, "name": "F6", "dur": 0.23}, {"id": "rh-181", "beat": 1.75, "midi": 93, "name": "A6", "dur": 0.23}, {"id": "rh-182", "beat": 2.0, "midi": 91, "name": "G6", "dur": 2.031667}], "lh": [{"id": "lh-155", "beat": 0.0, "midi": 57, "name": "A3", "dur": 0.46}, {"id": "lh-156", "beat": 0.5, "midi": 45, "name": "A2", "dur": 0.46}, {"id": "lh-157", "beat": 2.25, "midi": 64, "name": "E4", "dur": 0.23}, {"id": "lh-158", "beat": 2.5, "midi": 62, "name": "D4", "dur": 0.23}, {"id": "lh-159", "beat": 2.75, "midi": 60, "name": "C4", "dur": 0.23}, {"id": "lh-160", "beat": 3.0, "midi": 59, "name": "B3", "dur": 0.23}, {"id": "lh-161", "beat": 3.25, "midi": 62, "name": "D4", "dur": 0.23}, {"id": "lh-162", "beat": 3.5, "midi": 61, "name": "C#4", "dur": 0.23}, {"id": "lh-163", "beat": 3.75, "midi": 64, "name": "E4", "dur": 0.23}]}, {"bar": 16, "rh": [{"id": "rh-183", "beat": 0.25, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-184", "beat": 0.5, "midi": 89, "name": "F6", "dur": 0.23}, {"id": "rh-185", "beat": 0.75, "midi": 91, "name": "G6", "dur": 0.23}, {"id": "rh-186", "beat": 1.0, "midi": 93, "name": "A6", "dur": 0.23}, {"id": "rh-187", "beat": 1.25, "midi": 89, "name": "F6", "dur": 0.23}, {"id": "rh-188", "beat": 1.5, "midi": 91, "name": "G6", "dur": 0.23}, {"id": "rh-189", "beat": 1.75, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-190", "beat": 2.0, "midi": 89, "name": "F6", "dur": 2.07}], "lh": [{"id": "lh-164", "beat": 0.0, "midi": 62, "name": "D4", "dur": 2.031667}, {"id": "lh-165", "beat": 2.25, "midi": 57, "name": "A3", "dur": 0.23}, {"id": "lh-166", "beat": 2.5, "midi": 59, "name": "B3", "dur": 0.23}, {"id": "lh-167", "beat": 2.75, "midi": 60, "name": "C4", "dur": 0.23}, {"id": "lh-168", "beat": 3.0, "midi": 62, "name": "D4", "dur": 0.23}, {"id": "lh-169", "beat": 3.25, "midi": 59, "name": "B3", "dur": 0.23}, {"id": "lh-170", "beat": 3.5, "midi": 60, "name": "C4", "dur": 0.23}, {"id": "lh-171", "beat": 3.75, "midi": 57, "name": "A3", "dur": 0.23}]}, {"bar": 17, "rh": [{"id": "rh-191", "beat": 0.25, "midi": 91, "name": "G6", "dur": 0.23}, {"id": "rh-192", "beat": 0.5, "midi": 89, "name": "F6", "dur": 0.23}, {"id": "rh-193", "beat": 0.75, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-194", "beat": 1.0, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-195", "beat": 1.25, "midi": 89, "name": "F6", "dur": 0.23}, {"id": "rh-196", "beat": 1.5, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-197", "beat": 1.75, "midi": 91, "name": "G6", "dur": 0.23}, {"id": "rh-198", "beat": 2.0, "midi": 89, "name": "F6", "dur": 2.031667}], "lh": [{"id": "lh-172", "beat": 0.0, "midi": 59, "name": "B3", "dur": 2.031667}, {"id": "lh-173", "beat": 2.25, "midi": 62, "name": "D4", "dur": 0.23}, {"id": "lh-174", "beat": 2.5, "midi": 60, "name": "C4", "dur": 0.23}, {"id": "lh-175", "beat": 2.75, "midi": 59, "name": "B3", "dur": 0.23}, {"id": "lh-176", "beat": 3.0, "midi": 57, "name": "A3", "dur": 0.23}, {"id": "lh-177", "beat": 3.25, "midi": 60, "name": "C4", "dur": 0.23}, {"id": "lh-178", "beat": 3.5, "midi": 59, "name": "B3", "dur": 0.23}, {"id": "lh-179", "beat": 3.75, "midi": 62, "name": "D4", "dur": 0.23}]}, {"bar": 18, "rh": [{"id": "rh-199", "beat": 0.25, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-200", "beat": 0.5, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-201", "beat": 0.75, "midi": 89, "name": "F6", "dur": 0.23}, {"id": "rh-202", "beat": 1.0, "midi": 91, "name": "G6", "dur": 0.23}, {"id": "rh-203", "beat": 1.25, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-204", "beat": 1.5, "midi": 89, "name": "F6", "dur": 0.23}, {"id": "rh-205", "beat": 1.75, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-206", "beat": 2.0, "midi": 88, "name": "E6", "dur": 2.031667}], "lh": [{"id": "lh-180", "beat": 0.0, "midi": 60, "name": "C4", "dur": 2.031667}, {"id": "lh-181", "beat": 2.25, "midi": 55, "name": "G3", "dur": 0.23}, {"id": "lh-182", "beat": 2.5, "midi": 57, "name": "A3", "dur": 0.23}, {"id": "lh-183", "beat": 2.75, "midi": 58, "name": "A#3", "dur": 0.23}, {"id": "lh-184", "beat": 3.0, "midi": 60, "name": "C4", "dur": 0.23}, {"id": "lh-185", "beat": 3.25, "midi": 57, "name": "A3", "dur": 0.23}, {"id": "lh-186", "beat": 3.5, "midi": 58, "name": "A#3", "dur": 0.23}, {"id": "lh-187", "beat": 3.75, "midi": 55, "name": "G3", "dur": 0.23}]}, {"bar": 19, "rh": [{"id": "rh-207", "beat": 0.25, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-208", "beat": 0.5, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-209", "beat": 0.75, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-210", "beat": 1.0, "midi": 89, "name": "F6", "dur": 0.23}, {"id": "rh-211", "beat": 1.25, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-212", "beat": 1.5, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-213", "beat": 1.75, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-214", "beat": 2.0, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-215", "beat": 2.25, "midi": 88, "name": "E6", "dur": 0.23}, {"id": "rh-216", "beat": 2.5, "midi": 89, "name": "F6", "dur": 0.23}, {"id": "rh-217", "beat": 2.75, "midi": 91, "name": "G6", "dur": 0.23}, {"id": "rh-218", "beat": 3.0, "midi": 93, "name": "A6", "dur": 0.23}, {"id": "rh-219", "beat": 3.25, "midi": 89, "name": "F6", "dur": 0.23}, {"id": "rh-220", "beat": 3.5, "midi": 91, "name": "G6", "dur": 0.23}, {"id": "rh-221", "beat": 3.75, "midi": 88, "name": "E6", "dur": 0.23}], "lh": [{"id": "lh-188", "beat": 0.0, "midi": 57, "name": "A3", "dur": 0.46}, {"id": "lh-189", "beat": 0.5, "midi": 58, "name": "A#3", "dur": 0.46}, {"id": "lh-190", "beat": 1.0, "midi": 57, "name": "A3", "dur": 0.46}, {"id": "lh-191", "beat": 1.5, "midi": 55, "name": "G3", "dur": 0.46}, {"id": "lh-192", "beat": 2.0, "midi": 53, "name": "F3", "dur": 0.46}, {"id": "lh-193", "beat": 2.5, "midi": 62, "name": "D4", "dur": 0.46}, {"id": "lh-194", "beat": 3.0, "midi": 60, "name": "C4", "dur": 0.46}, {"id": "lh-195", "beat": 3.5, "midi": 58, "name": "A#3", "dur": 0.46}]}, {"bar": 20, "rh": [{"id": "rh-222", "beat": 0.0, "midi": 89, "name": "F6", "dur": 0.23}, {"id": "rh-223", "beat": 0.25, "midi": 91, "name": "G6", "dur": 0.23}, {"id": "rh-224", "beat": 0.5, "midi": 93, "name": "A6", "dur": 0.23}, {"id": "rh-225", "beat": 0.75, "midi": 95, "name": "B6", "dur": 0.23}, {"id": "rh-226", "beat": 1.0, "midi": 96, "name": "C7", "dur": 0.23}, {"id": "rh-227", "beat": 1.25, "midi": 93, "name": "A6", "dur": 0.23}, {"id": "rh-228", "beat": 1.5, "midi": 95, "name": "B6", "dur": 0.23}, {"id": "rh-229", "beat": 1.75, "midi": 91, "name": "G6", "dur": 0.23}, {"id": "rh-230", "beat": 2.0, "midi": 96, "name": "C7", "dur": 0.46}, {"id": "rh-231", "beat": 2.5, "midi": 91, "name": "G6", "dur": 0.46}, {"id": "rh-232", "beat": 3.0, "midi": 88, "name": "E6", "dur": 0.46}, {"id": "rh-233", "beat": 3.5, "midi": 86, "name": "D6", "dur": 0.23}, {"id": "rh-234", "beat": 3.75, "midi": 84, "name": "C6", "dur": 0.23}], "lh": [{"id": "lh-196", "beat": 0.0, "midi": 57, "name": "A3", "dur": 0.46}, {"id": "lh-197", "beat": 0.5, "midi": 65, "name": "F4", "dur": 0.46}, {"id": "lh-198", "beat": 1.0, "midi": 64, "name": "E4", "dur": 0.46}, {"id": "lh-199", "beat": 1.5, "midi": 62, "name": "D4", "dur": 0.46}, {"id": "lh-200", "beat": 2.0, "midi": 64, "name": "E4", "dur": 0.23}, {"id": "lh-201", "beat": 2.25, "midi": 50, "name": "D3", "dur": 0.23}, {"id": "lh-202", "beat": 2.5, "midi": 52, "name": "E3", "dur": 0.23}, {"id": "lh-203", "beat": 2.75, "midi": 53, "name": "F3", "dur": 0.23}, {"id": "lh-204", "beat": 3.0, "midi": 55, "name": "G3", "dur": 0.23}, {"id": "lh-205", "beat": 3.25, "midi": 52, "name": "E3", "dur": 0.23}, {"id": "lh-206", "beat": 3.5, "midi": 53, "name": "F3", "dur": 0.23}, {"id": "lh-207", "beat": 3.75, "midi": 50, "name": "D3", "dur": 0.23}]}, {"bar": 21, "rh": [{"id": "rh-235", "beat": 0.0, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-236", "beat": 0.25, "midi": 82, "name": "A#5", "dur": 0.23}, {"id": "rh-237", "beat": 0.5, "midi": 81, "name": "A5", "dur": 0.23}, {"id": "rh-238", "beat": 0.75, "midi": 79, "name": "G5", "dur": 0.23}, {"id": "rh-239", "beat": 1.0, "midi": 77, "name": "F5", "dur": 0.23}, {"id": "rh-240", "beat": 1.25, "midi": 81, "name": "A5", "dur": 0.23}, {"id": "rh-241", "beat": 1.5, "midi": 79, "name": "G5", "dur": 0.23}, {"id": "rh-242", "beat": 1.75, "midi": 82, "name": "A#5", "dur": 0.23}, {"id": "rh-243", "beat": 2.0, "midi": 81, "name": "A5", "dur": 0.23}, {"id": "rh-244", "beat": 2.25, "midi": 83, "name": "B5", "dur": 0.23}, {"id": "rh-245", "beat": 2.5, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-246", "beat": 2.75, "midi": 76, "name": "E5", "dur": 0.23}, {"id": "rh-247", "beat": 3.0, "midi": 74, "name": "D5", "dur": 0.23}, {"id": "rh-248", "beat": 3.25, "midi": 84, "name": "C6", "dur": 0.23}, {"id": "rh-249", "beat": 3.5, "midi": 77, "name": "F5", "dur": 0.23}, {"id": "rh-250", "beat": 3.75, "midi": 83, "name": "B5", "dur": 0.23}], "lh": [{"id": "lh-208", "beat": 0.0, "midi": 52, "name": "E3", "dur": 0.46}, {"id": "lh-209", "beat": 0.5, "midi": 48, "name": "C3", "dur": 0.46}, {"id": "lh-210", "beat": 1.0, "midi": 50, "name": "D3", "dur": 0.46}, {"id": "lh-211", "beat": 1.5, "midi": 52, "name": "E3", "dur": 0.46}, {"id": "lh-212", "beat": 2.0, "midi": 53, "name": "F3", "dur": 0.23}, {"id": "lh-213", "beat": 2.25, "midi": 50, "name": "D3", "dur": 0.23}, {"id": "lh-214", "beat": 2.5, "midi": 52, "name": "E3", "dur": 0.23}, {"id": "lh-215", "beat": 2.75, "midi": 53, "name": "F3", "dur": 0.23}, {"id": "lh-216", "beat": 3.0, "midi": 55, "name": "G3", "dur": 0.46}, {"id": "lh-217", "beat": 3.5, "midi": 43, "name": "G2", "dur": 0.46}]}, {"bar": 22, "rh": [{"id": "rh-253", "beat": 0.0625, "midi": 76, "name": "E5", "dur": 3.6225}, {"id": "rh-252", "beat": 0.0938, "midi": 79, "name": "G5", "dur": 3.59375}, {"id": "rh-251", "beat": 0.125, "midi": 84, "name": "C6", "dur": 3.565}], "lh": [{"id": "lh-219", "beat": 0.0, "midi": 36, "name": "C2", "dur": 3.68}, {"id": "lh-218", "beat": 0.0312, "midi": 48, "name": "C3", "dur": 3.65125}]}];
+const groups = [];
+let pending = new Set();
+const history = [];
+
+const COLORS = ["#ffb040", "#40c0ff", "#c060ff", "#60ff90", "#ff6080", "#ffd060"];
+
+function groupOf(id) {
+  for (let i = 0; i < groups.length; i++) if (groups[i].ids.includes(id)) return i;
+  return -1;
+}
+
+function updateGroups() {
+  const el = document.getElementById("groups");
+  if (!groups.length) { el.textContent = "尚无三连音组"; return; }
+  el.innerHTML = groups.map((g, i) =>
+    `<span style="color:${COLORS[i % COLORS.length]}">组${i+1}: ${g.ids.join(", ")}</span>`
+  ).join(" · ");
+}
+
+function updateStatus(msg) {
+  document.getElementById("status").textContent =
+    (msg || "") + ` · 当前组 ${pending.size} 个音 · 共 ${groups.length} 组`;
+}
+
+const NOTE_H = 14;
+const BEAT_W = 48;
+const LANE_H = 130;
+const PAD_L = 44;
+const PAD_T = 22;
+
+function midiRange(notes) {
+  if (!notes.length) return [48, 84];
+  let lo = 999, hi = 0;
+  for (const n of notes) { lo = Math.min(lo, n.midi); hi = Math.max(hi, n.midi); }
+  return [lo - 2, hi + 2];
+}
+
+function yForMidi(midi, lo, hi, h) {
+  return PAD_T + (1 - (midi - lo) / Math.max(1, hi - lo)) * (h - PAD_T - 10);
+}
+
+function drawBar(row, canvas) {
+  const notes = row.rh.concat(row.lh);
+  const [lo, hi] = midiRange(notes);
+  const W = PAD_L + BEAT_W * 4 + 20;
+  const H = LANE_H;
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#0d0d0d";
+  ctx.fillRect(0, 0, W, H);
+
+  for (let b = 0; b <= 4; b++) {
+    const x = PAD_L + b * BEAT_W;
+    ctx.strokeStyle = "#333";
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(x, PAD_T); ctx.lineTo(x, H); ctx.stroke();
+    if (b < 4) {
+      ctx.fillStyle = "#555"; ctx.font = "10px system-ui";
+      ctx.fillText(String(b + 1), x + 3, 12);
+    }
+  }
+
+  ctx.fillStyle = "#888"; ctx.font = "11px system-ui";
+  ctx.fillText("RH", 6, PAD_T + 14);
+  ctx.fillText("LH", 6, PAD_T + 58);
+
+  function drawVoice(voice, yOff) {
+    for (const n of row[voice]) {
+      const x = PAD_L + n.beat * BEAT_W;
+      const y = yForMidi(n.midi, lo, hi, H) + yOff;
+      const w = Math.max(8, n.dur * BEAT_W * 0.92);
+      const gi = groupOf(n.id);
+      const sel = pending.has(n.id);
+      ctx.fillStyle = voice === "rh" ? "#c8e0ff" : "#a8d8a8";
+      ctx.fillRect(x, y - NOTE_H/2, w, NOTE_H);
+      if (gi >= 0) {
+        ctx.strokeStyle = COLORS[gi % COLORS.length];
+        ctx.lineWidth = 3;
+      } else if (sel) {
+        ctx.strokeStyle = "#6cf";
+        ctx.lineWidth = 2;
+      } else {
+        ctx.strokeStyle = "#555";
+        ctx.lineWidth = 1;
+      }
+      ctx.strokeRect(x, y - NOTE_H/2, w, NOTE_H);
+      ctx.fillStyle = gi >= 0 ? COLORS[gi % COLORS.length] : "#666";
+      ctx.font = "9px system-ui";
+      ctx.fillText(n.name, x + 2, y - NOTE_H/2 - 2);
+    }
+  }
+  drawVoice("rh", 0);
+  drawVoice("lh", 4);
+
+  canvas._hits = [];
+  for (const v of ["rh", "lh"]) {
+    for (const n of row[v]) {
+      const x = PAD_L + n.beat * BEAT_W;
+      const y = yForMidi(n.midi, lo, hi, H);
+      const w = Math.max(8, n.dur * BEAT_W * 0.92);
+      canvas._hits.push({ id: n.id, bar: row.bar, voice: v, x, y, w, h: NOTE_H, n });
+    }
+  }
+}
+
+function render() {
+  const root = document.getElementById("root");
+  root.innerHTML = "";
+  for (const row of BARS) {
+    const block = document.createElement("div");
+    block.className = "bar-block";
+    block.innerHTML = `<h2>谱小节 ${row.bar}</h2>`;
+    const cv = document.createElement("canvas");
+    block.appendChild(cv);
+    const hint = document.createElement("div");
+    hint.className = "hint";
+    hint.textContent = "左键点选/取消 · 右键从组中移除";
+    block.appendChild(hint);
+    root.appendChild(block);
+    drawBar(row, cv);
+    cv.oncontextmenu = (e) => {
+      e.preventDefault();
+      const r = cv.getBoundingClientRect();
+      const mx = (e.clientX - r.left) * (cv.width / r.width);
+      const my = (e.clientY - r.top) * (cv.height / r.height);
+      for (const h of cv._hits) {
+        if (mx >= h.x && mx <= h.x + h.w && my >= h.y - h.h/2 && my <= h.y + h.h/2) {
+          const gi = groupOf(h.id);
+          if (gi >= 0) {
+            groups[gi].ids = groups[gi].ids.filter(x => x !== h.id);
+            if (!groups[gi].ids.length) groups.splice(gi, 1);
+            updateGroups(); updateStatus(`${h.n.name} 移出组`); render(); return;
+          }
+          pending.delete(h.id);
+          updateStatus(`${h.n.name} 取消选择`); render(); return;
+        }
+      }
+    };
+    cv.onclick = (e) => {
+      const r = cv.getBoundingClientRect();
+      const mx = (e.clientX - r.left) * (cv.width / r.width);
+      const my = (e.clientY - r.top) * (cv.height / r.height);
+      for (const h of cv._hits) {
+        if (mx >= h.x && mx <= h.x + h.w && my >= h.y - h.h/2 && my <= h.y + h.h/2) {
+          if (groupOf(h.id) >= 0) { updateStatus(`${h.n.name} 已在某组里`); return; }
+          if (pending.has(h.id)) pending.delete(h.id);
+          else pending.add(h.id);
+          updateStatus(`${h.n.name} ${pending.has(h.id) ? "加入" : "移出"}`); render(); return;
+        }
+      }
+    };
+  }
+  updateGroups();
+}
+
+document.getElementById("finish").onclick = () => {
+  if (pending.size < 2) { updateStatus("至少选 2 个音"); return; }
+  const ids = [...pending];
+  groups.push({ ids });
+  history.push({ type: "group", ids: [...ids] });
+  pending.clear();
+  updateStatus("组已保存"); render();
+};
+
+document.getElementById("save").onclick = () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify({ groups }, null, 2)], {type: "application/json"}));
+  a.download = "triplet_map.json"; a.click();
+};
+
+document.getElementById("undo").onclick = () => {
+  const last = history.pop();
+  if (!last) return;
+  if (last.type === "group") {
+    groups.pop();
+    updateStatus("撤销上一组"); render();
+  }
+};
+
+document.getElementById("clear").onclick = () => {
+  groups.length = 0; pending.clear(); history.length = 0;
+  updateStatus("已清除"); render();
+};
+
+render();
+</script>
+</body>
+</html>
