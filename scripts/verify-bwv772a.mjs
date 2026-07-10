@@ -220,6 +220,21 @@ async function main() {
   if (fragRatio < 0.05) pass("opening: no left step-21 fragment");
   else fail("opening: no left step-21 fragment", `fg ratio=${fragRatio.toFixed(3)} sPrev=${JSON.stringify(mOpen.sPrev)}`);
 
+  let stubFail = null;
+  for (const frac of [0.2, 0.5, 0.8]) {
+    const t = (T.START_BEAT + T.INTRO_TOTAL_BEATS * frac) * T.BEAT;
+    const m = await meta(page, t);
+    const sample = await drawAndSample(page, t);
+    const fg = m.plan % 2 === 1 ? "#0d0d0d" : "#cccccc";
+    const bg = m.plan % 2 === 1 ? "#cccccc" : "#0d0d0d";
+    if (m.sCur.x > 8) {
+      const stub = regionFgRatio(sample, 0, m.sCur.y - 2, m.sCur.x - 4, m.sCur.y + 2, fg, bg);
+      if (stub > 0.05) stubFail = `frac=${frac} stub=${stub.toFixed(3)} sCur.x=${m.sCur.x.toFixed(1)}`;
+    }
+  }
+  if (!stubFail) pass("opening: no horizontal stub left of bar 22 during scroll");
+  else fail("opening: no horizontal stub left of bar 22", stubFail);
+
   const tEntry = T.START_BEAT * T.BEAT + T.BEAT * 0.2;
   const mEntry = await meta(page, tEntry);
   if (mEntry.ball.x < mEntry.ball.x + 1 && mEntry.ball.x < 200) pass("opening: ball enters from left");
@@ -254,6 +269,36 @@ async function main() {
   if (s21x < 400 && lineHasFg(sampleLoop, mLoop.sPrev.y, Math.max(0, s21x), s21x + mLoop.sPrev.w, fgLoop, bgLoop, 4))
     pass("loop return: step 21 platform visible");
   else fail("loop return: step 21 visible", `sPrev=${JSON.stringify(mLoop.sPrev)}`);
+
+  // --- 2b. 21→22: smooth lift (not instant jump) ---
+  await page.evaluate(() => window.__TEST__.boot());
+  const tLoopStart = (T.START_BEAT + T.PIECE_BEATS - 0.5) * T.BEAT;
+  const tLoopEnd = (T.START_BEAT + T.PIECE_BEATS + T.REST) * T.BEAT;
+  await page.evaluate(
+    (t0, t1) => {
+      window.__TEST__.runTrack(t0, t1, 0.005);
+    },
+    T.START_BEAT * T.BEAT,
+    tLoopEnd
+  );
+  const liftYs = [];
+  for (let b = 0; b <= T.REST; b += 0.02) {
+    const t = (T.START_BEAT + T.PIECE_BEATS + b) * T.BEAT;
+    const y = await page.evaluate((t) => {
+      const x = window.__TEST__;
+      const l = x.locate(t);
+      const sx = x.scrollXAt(t);
+      return x.stepScreen(l.stepIndex, sx, t).y;
+    }, t);
+    liftYs.push(y);
+  }
+  let maxStep = 0;
+  for (let i = 1; i < liftYs.length; i++) {
+    maxStep = Math.max(maxStep, Math.abs(liftYs[i] - liftYs[i - 1]));
+  }
+  const totalLift = liftYs.length ? liftYs[liftYs.length - 1] - liftYs[0] : 0;
+  if (totalLift < -20 && maxStep < 25) pass("21→22: smooth camera lift during REST");
+  else fail("21→22: smooth camera lift", `totalLift=${totalLift.toFixed(1)} maxStep=${maxStep.toFixed(1)}`);
 
   // --- 3. 22→1 drop: no bar 22 horizontal, drop join present ---
   await page.evaluate(() => window.__TEST__.boot());
@@ -343,7 +388,7 @@ async function main() {
 
   console.log("");
   if (failures.length === 0) {
-    console.log(`All ${8} checks passed.`);
+    console.log(`All ${10} checks passed.`);
     process.exit(0);
   } else {
     console.log(`${failures.length} check(s) failed.`);

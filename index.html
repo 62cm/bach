@@ -258,8 +258,23 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
 
   function scrollDropAtMus(tMus) {
     const { stepIndex, plan, beatInStep } = locate(tMus);
-    // 只在 cycle 台阶 REST 滚落时抬升相机；flat 22 及非掉落段高度不变
+    // cycle 台阶 REST：相机随滚落抬升
     if (stepKind(plan) === "cycle" && beatInStep < REST && stepIndex > 0) {
+      const u = beatInStep / REST;
+      const prevDrop = cumDropUpTo(stepIndex - 1);
+      const curDrop = cumDropUpTo(stepIndex);
+      if (u < ROLL_FRAC) return prevDrop;
+      const f = (u - ROLL_FRAC) / (1 - ROLL_FRAC);
+      return prevDrop + (curDrop - prevDrop) * (f * f);
+    }
+    // 21→22 循环回来：与 cycle 一样在 REST 内平滑抬升，不要瞬跳
+    if (
+      isBar22(plan) &&
+      !isFirstOpening(tMus) &&
+      loopCount >= 1 &&
+      beatInStep < REST &&
+      stepIndex > 0
+    ) {
       const u = beatInStep / REST;
       const prevDrop = cumDropUpTo(stepIndex - 1);
       const curDrop = cumDropUpTo(stepIndex);
@@ -558,18 +573,14 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     return plan % 2 === 1 ? { bg: LIGHT, fg: DARK } : { bg: DARK, fg: LIGHT };
   }
 
-  function bar22IndexAt(stepIndex) {
-    const loop = Math.floor(stepIndex / N_STEPS);
-    return loop * N_STEPS + (N_STEPS - 1);
-  }
-
   function drawBar22Platform(i, scrollX, tMus, fg) {
     const s = stepScreen(i, scrollX, tMus);
     if (s.x + s.w < -40 || s.x > W + 40) return;
     const xR = s.x + s.w;
+    const xL = s.x;
     ctx.strokeStyle = fg;
     ctx.beginPath();
-    ctx.moveTo(-40, s.y);
+    ctx.moveTo(xL, s.y);
     ctx.lineTo(xR, s.y);
     ctx.stroke();
     ctx.beginPath();
@@ -594,7 +605,6 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     const mid = loc.stepIndex;
     const midPlan = planOf(mid);
     const onBar22 = isBar22(midPlan);
-    const bar22Idx = bar22IndexAt(mid);
     const inRestFall =
       stepKind(midPlan) === "cycle" && loc.beatInStep < REST && mid > 0;
     ctx.lineWidth = 2.5;
@@ -602,7 +612,7 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     for (let i = mid - 3; i <= mid + 3; i++) {
       const plan = planOf(i);
       // 第一次播放到 22：左侧台阶全不画；之后循环回来要画 21 等
-      if (onBar22 && loopCount === 0 && i < bar22Idx) continue;
+      if (onBar22 && loopCount === 0 && i < mid) continue;
 
       const s = stepScreen(i, scrollX, tMus);
       if (isBar22(plan)) continue;
@@ -635,7 +645,11 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
       ctx.fillText(String(barNum), s.x + s.w * 0.5, s.y + 22);
     }
 
-    drawBar22Platform(bar22Idx, scrollX, tMus, fg);
+    for (let i = mid - 3; i <= mid + 3; i++) {
+      if (isBar22(planOf(i))) {
+        drawBar22Platform(i, scrollX, tMus, fg);
+      }
+    }
 
     if (inRestFall) {
       const sPrev = stepScreen(mid - 1, scrollX, tMus);
