@@ -665,16 +665,6 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
       }
     }
 
-    // 首次播放：22 左缘以左用黑色遮住（不盖住 22 本身），球在最上层
-    if (loopCount === 0 && onBar22) {
-      const s22 = stepScreen(mid, scrollX, tMus);
-      const maskW = Math.max(0, s22.x + 40);
-      if (maskW > 0) {
-        ctx.fillStyle = DARK;
-        ctx.fillRect(-40, 0, maskW, H);
-      }
-    }
-
     ctx.beginPath();
     ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI * 2);
     ctx.strokeStyle = fg;
