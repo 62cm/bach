@@ -575,7 +575,7 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
 
     for (let i = mid - 3; i <= mid + 3; i++) {
       const plan = planOf(i);
-      // 首次开场站在 22 上：左侧不画 21；循环回来要保留左侧台阶
+      // 首次开场站在 22 上：左侧不画 21；循环回来画出 21
       if (onBar22 && loopCount === 0 && i < mid) continue;
 
       const s = stepScreen(i, scrollX, tMus);
@@ -587,9 +587,7 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
         if (onBar22) {
           ctx.strokeStyle = fg;
           ctx.beginPath();
-          // 首次 0 台阶：左侧无限延伸；循环回来从本台阶左缘起画，露出 21
-          const xL = loopCount === 0 ? -40 : s.x;
-          ctx.moveTo(xL, s.y);
+          ctx.moveTo(-40, s.y);
           ctx.lineTo(xR, s.y);
           ctx.stroke();
           if (!inRestFall) {
@@ -607,7 +605,8 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
         continue;
       }
 
-      if (s.x > W + 40 || s.x + s.w < -40) continue;
+      // 右缘未进画才跳过；避免左侧只露出一条线/一截台阶
+      if (s.x > W + 40 || s.x + s.w < 0) continue;
       const barNum =
         STEPS[plan].bar ||
         Math.floor((STEPS[plan].slot != null ? STEPS[plan].slot : plan) / 2) + 1;
