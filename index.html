@@ -580,22 +580,18 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
 
       const s = stepScreen(i, scrollX, tMus);
       if (isBar22(plan)) {
-        // 22：站上 22 时始终画整段平台；滚落时仅 dropJoin 画竖线
         if (!onBar22 && i !== mid - 1) continue;
         const xR = s.x + s.w;
         if (onBar22) {
-          if (s.x > W + 200) continue;
           ctx.strokeStyle = fg;
           ctx.beginPath();
           ctx.moveTo(-40, s.y);
           ctx.lineTo(xR, s.y);
           ctx.stroke();
-          if (!inRestFall) {
-            ctx.beginPath();
-            ctx.moveTo(xR, s.y);
-            ctx.lineTo(xR, s.y + STEP_H + 40);
-            ctx.stroke();
-          }
+          ctx.beginPath();
+          ctx.moveTo(xR, s.y);
+          ctx.lineTo(xR, s.y + STEP_H + 40);
+          ctx.stroke();
           ctx.fillStyle = fg;
           ctx.font = "600 18px system-ui, sans-serif";
           ctx.textAlign = "center";
@@ -605,10 +601,7 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
         continue;
       }
 
-      const isLoopLeft21 = onBar22 && loopCount > 0 && i === mid - 1;
-      // 只裁掉 mid-1 以左、左缘还在画外的碎台阶；不裁 22 平台、不裁循环时的 21
-      if (s.x > W + 40) continue;
-      if (!isLoopLeft21 && i < mid - 1 && s.x < 0) continue;
+      if (s.x > W + 40 || s.x + s.w < -40) continue;
       const barNum =
         STEPS[plan].bar ||
         Math.floor((STEPS[plan].slot != null ? STEPS[plan].slot : plan) / 2) + 1;
