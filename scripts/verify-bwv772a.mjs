@@ -201,9 +201,9 @@ async function main() {
 
   // --- 0. Before start: blank canvas, no steps ---
   const preStart = await samplePage(page);
-  const preFg = regionFgRatio(preStart, 0, 0, 479, 359, "#cccccc", "#333333");
-  if (preFg < 0.01) pass("pre-start: blank canvas, no step graphics");
-  else fail("pre-start: blank canvas", `fg ratio=${preFg.toFixed(3)}`);
+  const preFg = regionFgRatio(preStart, 0, 0, 479, 359, "#cccccc", "#0d0d0d");
+  if (preFg < 0.01) pass("pre-start: idle bg only, no step graphics");
+  else fail("pre-start: idle canvas", `fg ratio=${preFg.toFixed(3)}`);
 
   await page.evaluate(() => window.__TEST__.boot());
   const tOpen = (T.START_BEAT + T.INTRO_TOTAL_BEATS * 0.5) * T.BEAT;
@@ -315,19 +315,37 @@ async function main() {
   else fail("21→22: smooth camera lift", `totalLift=${totalLift.toFixed(1)} maxStep=${maxStep.toFixed(1)}`);
 
   const ballYs = [];
+  const stepYs = [];
   for (let b = 0; b <= T.REST; b += 0.02) {
     const t = (T.START_BEAT + T.PIECE_BEATS + b) * T.BEAT;
-    const y = await page.evaluate((t) => window.__TEST__.ballState(t).y, t);
-    ballYs.push(y);
+    const sample = await page.evaluate((t) => {
+      const x = window.__TEST__;
+      const l = x.locate(t);
+      const sx = x.scrollXAt(t);
+      return {
+        ballY: x.ballState(t).y,
+        stepY: x.stepScreen(l.stepIndex, sx, t).y,
+      };
+    }, t);
+    ballYs.push(sample.ballY);
+    stepYs.push(sample.stepY);
   }
-  const i0 = Math.min(Math.ceil((0.28 * T.REST) / 0.02), ballYs.length - 1);
-  const ballDrop = ballYs.length ? ballYs[ballYs.length - 1] - ballYs[i0] : 0;
   let maxBallStep = 0;
-  for (let i = i0 + 1; i < ballYs.length; i++) {
+  for (let i = 1; i < ballYs.length; i++) {
     maxBallStep = Math.max(maxBallStep, Math.abs(ballYs[i] - ballYs[i - 1]));
   }
-  if (ballDrop < -20 && maxBallStep < 25) pass("21→22: ball follows bar 22 platform lift");
-  else fail("21→22: ball lift", `drop=${ballDrop.toFixed(1)} maxStep=${maxBallStep.toFixed(1)}`);
+  const ballRange = ballYs.length
+    ? Math.max(...ballYs) - Math.min(...ballYs)
+    : 0;
+  const stepLift = stepYs.length ? stepYs[0] - stepYs[stepYs.length - 1] : 0;
+  if (stepLift > 20 && ballRange < 8 && maxBallStep < 8) {
+    pass("21→22: ball fixed like cycle REST (not platform tracking)");
+  } else {
+    fail(
+      "21→22: ball REST motion",
+      `stepLift=${stepLift.toFixed(1)} ballRange=${ballRange.toFixed(1)} maxBallStep=${maxBallStep.toFixed(1)}`
+    );
+  }
 
   // --- 3. 22→1 drop: bar 22 horizontal + drop join ---
   await page.evaluate(() => window.__TEST__.boot());
