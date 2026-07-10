@@ -498,7 +498,8 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
 
     for (let i = mid - 3; i <= mid + 3; i++) {
       const plan = planOf(i);
-      if (onFlat && !introDone && loopCount === 0 && i < mid) continue;
+      // 开场 0 台阶：左侧不画 21，右侧保留 1
+      if (onFlat && loopCount === 0 && i < mid) continue;
 
       const s = stepScreen(i, scrollX);
       if (isFlatLanding(plan)) {
