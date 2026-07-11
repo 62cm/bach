@@ -99,8 +99,9 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
 
   const REST = 0.25;
   const FLASH16 = 1 / 4;
-  const FLASH32 = 1 / 8;
-  const BAR2122_DUR = FLASH16 + FLASH32;
+  const BAR2122_BOUNCES = 3;
+  const BAR2122_BOUNCE_PEAKS = [1, 2, 4];
+  const BAR2122_DUR = FLASH16 * (2 + BAR2122_BOUNCES);
   const BIG = [0.25, 0.5, 0.75];
   const SMALL = [1.0, 1 + 1 / 6, 1 + 2 / 6, 1.5, 1.5 + 1 / 6, 1.5 + 2 / 6];
   const ALL_HITS = BIG.concat(SMALL);
@@ -260,8 +261,8 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     return cumWidthUpTo(stepIndex) + u * stepWidth(plan);
   }
 
-  function restDropBlend(stepIndex, beatInStep) {
-    const u = beatInStep / REST;
+  function restDropBlend(stepIndex, beatInStep, restDur = REST) {
+    const u = beatInStep / restDur;
     const prevDrop = cumDropUpTo(stepIndex - 1);
     const curDrop = cumDropUpTo(stepIndex);
     if (u < ROLL_FRAC) return prevDrop;
@@ -284,7 +285,7 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
   function scrollDropAtMus(tMus) {
     const { stepIndex, plan, beatInStep } = locate(tMus);
     if (isRestEntry(tMus, plan, beatInStep, stepIndex)) {
-      return restDropBlend(stepIndex, beatInStep);
+      return restDropBlend(stepIndex, beatInStep, restEntryDur(tMus, plan));
     }
     return cumDropUpTo(stepIndex);
   }
@@ -341,21 +342,24 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     return groundPrev + (ground - groundPrev) * (f * f);
   }
 
+  /** 21→22：空(落) + 三次 16 分反弹(高 1/2/4) + 第四次触地保持 */
   function bar2122BallY(beat, groundPrev, ground) {
     if (beat < FLASH16) {
       const f = beat / FLASH16;
       return groundPrev + (ground - groundPrev) * (f * f);
     }
-    if (beat >= FLASH16 + FLASH32) return ground;
-    const u = (beat - FLASH16) / FLASH32;
-    return ground - arc(u, bouncePeak(1, "big"));
+    const local = beat - FLASH16;
+    const seg = Math.floor(local / FLASH16);
+    const u = (local % FLASH16) / FLASH16;
+    if (seg >= BAR2122_BOUNCES) return ground;
+    return ground - arc(u, bouncePeak(BAR2122_BOUNCE_PEAKS[seg], "big"));
   }
 
   function bar2122Impact(beat) {
-    return (
-      Math.abs(beat - FLASH16) < 0.02 ||
-      Math.abs(beat - (FLASH16 + FLASH32)) < 0.02
-    );
+    for (let i = 1; i <= BAR2122_BOUNCES + 1; i++) {
+      if (Math.abs(beat - i * FLASH16) < 0.02) return true;
+    }
+    return false;
   }
 
   /** loopCount 已 +1：奇数=落前实心，偶数=落前空心；交替 实↔空 */
@@ -367,23 +371,29 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     return loopCount % 2 === 0;
   }
 
+  /** 实空实空实空实空；末段保持；偶数 loop 整段反相 */
   function bar2122Filled(beat) {
-    const prev = prevRestingFilled();
-    const toggled = !prev;
-    if (beat >= FLASH16 + FLASH32) return toggled;
-    if (beat >= FLASH16) {
-      const u = (beat - FLASH16) / FLASH32;
-      if (u <= 1e-3 || u >= 1 - 1e-3) return toggled;
-      return prev;
+    const rev = loopCount % 2 === 0;
+    let solid;
+    if (beat < 1e-4) {
+      solid = prevRestingFilled();
+    } else if (beat < FLASH16) {
+      solid = false;
+    } else {
+      const local = beat - FLASH16;
+      const seg = Math.floor(local / FLASH16);
+      const u = (local % FLASH16) / FLASH16;
+      if (seg >= BAR2122_BOUNCES) solid = restingFilled();
+      else solid = u < 0.5;
     }
-    return prev;
+    return rev ? !solid : solid;
   }
 
   function isStep21(plan) {
     return plan === N_STEPS - 2;
   }
 
-  /** 球：loopCount<0 全程实心；21→22 双触地闪烁；之后 loopCount 偶=实奇=空 */
+  /** 球：loopCount<0 全程实心；21→22 三次反弹+保持实空闪；之后 loopCount 偶=实奇=空 */
   function ballFilled(tMus, ball, plan, beatInStep, stepIndex) {
     if (loopCount < 0) return true;
     const on2122 =
