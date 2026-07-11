@@ -46,7 +46,7 @@ const INJECT = `
     PIECE_BEATS,
     N_STEPS,
     INTRO_TOTAL_BEATS,
-    STEP21_HIDE_UNTIL,
+    STEP21_SHOW_AFTER,
     REST,
     W,
     H,
@@ -297,6 +297,39 @@ async function main() {
   const mEntry = await meta(page, tEntry);
   if (mEntry.ball.x < mEntry.ball.x + 1 && mEntry.ball.x < 200) pass("opening: ball enters from left");
   else fail("opening: ball enters from left", `ball.x=${mEntry.ball.x}`);
+
+  // --- 0b. First play on bar 22 before 2 bars: still no step 21 ---
+  await page.evaluate(() => {
+    window.__TEST__.boot();
+    window.__TEST__.loopCount = -1;
+  });
+  const tBar22Early = (T.START_BEAT + 3) * T.BEAT;
+  const mEarly = await meta(page, tBar22Early);
+  const sampleEarly = await drawAndSample(page, tBar22Early);
+  const fgEarly = mEarly.plan % 2 === 1 ? "#0d0d0d" : "#cccccc";
+  const bgEarly = mEarly.plan % 2 === 1 ? "#cccccc" : "#0d0d0d";
+  const s21Early = await page.evaluate((t) => {
+    const T = window.__TEST__;
+    const loc = T.locate(t);
+    const sx = T.scrollXAt(t);
+    const i21 = loc.stepIndex - 1;
+    return T.stepScreen(i21, sx, t);
+  }, tBar22Early);
+  const early21 = regionFgRatio(
+    sampleEarly,
+    Math.max(0, s21Early.x),
+    s21Early.y - 2,
+    s21Early.x + s21Early.w,
+    s21Early.y + 2,
+    fgEarly,
+    bgEarly
+  );
+  if (mEarly.onBar22 && mEarly.loopCount < 0 && tBar22Early < (await page.evaluate(() => window.__TEST__.STEP21_SHOW_AFTER))) {
+    if (early21 < 0.08) pass("first play before 2 bars: no step 21 on bar 22");
+    else fail("first play before 2 bars: no step 21 on bar 22", `ratio=${early21.toFixed(3)} s21=${JSON.stringify(s21Early)}`);
+  } else {
+    fail("first play before 2 bars: no step 21 on bar 22", `not on bar22 ${JSON.stringify(mEarly)}`);
+  }
 
   // --- 1b. First playthrough on step 21: full platform while loopCount still -1 ---
   await page.evaluate(() => window.__TEST__.boot());
