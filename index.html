@@ -593,6 +593,10 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     return plan % 2 === 1 ? { bg: LIGHT, fg: DARK } : { bg: DARK, fg: LIGHT };
   }
 
+  function hideStep21DuringIntro(tMus) {
+    return loopCount < 0 && isFirstOpening(tMus);
+  }
+
   function draw(tMus) {
     const idlePlan = N_STEPS - 1;
     const idleColors = colorsForBar(idlePlan);
@@ -639,8 +643,8 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
 
     for (let i = mid - 3; i <= mid + 3; i++) {
       const plan = planOf(i);
-      if (loopCount < 0 && onBar22 && isStep21(plan)) continue;
-      if (loopCount < 0 && onBar22 && i < mid) continue;
+      if (hideStep21DuringIntro(tMus) && isStep21(plan)) continue;
+      if (hideStep21DuringIntro(tMus) && i < mid) continue;
 
       const s = stepScreen(i, scrollX, tMus);
       if (s.x > W + 40 || s.x + s.w < -40) continue;
