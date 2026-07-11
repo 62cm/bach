@@ -17,7 +17,7 @@ const INJECT = `
   window.__TEST__ = {
     boot() {
       started = true;
-      loopCount = 0;
+      loopCount = -1;
       prevPlan = -1;
       prevStepIndex = -1;
     },
@@ -201,7 +201,7 @@ async function main() {
 
   // --- 0. Before start: idle bar 22 preview (right block visible)
   const preStart = await samplePage(page);
-  const preLine = lineHasFg(preStart, 209, 80, 310, "#cccccc", "#0d0d0d", 6);
+  const preLine = lineHasFg(preStart, 209, 330, 450, "#cccccc", "#0d0d0d", 4);
   if (preLine) pass("pre-start: bar 22 idle platform visible");
   else fail("pre-start: bar 22 idle platform visible", "no fg on platform");
 
@@ -209,7 +209,7 @@ async function main() {
   const tOpen = (T.START_BEAT + T.INTRO_TOTAL_BEATS * 0.5) * T.BEAT;
   const mOpen = await meta(page, tOpen);
   await page.evaluate(() => {
-    window.__TEST__.loopCount = 0;
+    window.__TEST__.loopCount = -1;
     window.__TEST__.prevPlan = -1;
     window.__TEST__.prevStepIndex = -1;
   });
@@ -218,8 +218,8 @@ async function main() {
   const bgOpen = mOpen.plan % 2 === 1 ? "#cccccc" : "#0d0d0d";
   const y22 = mOpen.sCur.y;
 
-  if (mOpen.onBar22 && mOpen.loopCount === 0) pass("opening: on bar 22, loopCount 0");
-  else fail("opening: on bar 22, loopCount 0", JSON.stringify(mOpen));
+  if (mOpen.onBar22 && mOpen.loopCount < 0) pass("opening: on bar 22, loopCount -1");
+  else fail("opening: on bar 22, loopCount -1", JSON.stringify(mOpen));
 
   if (
     lineHasFg(
@@ -281,8 +281,8 @@ async function main() {
   const fgLoop = mLoop.plan % 2 === 1 ? "#0d0d0d" : "#cccccc";
   const bgLoop = mLoop.plan % 2 === 1 ? "#cccccc" : "#0d0d0d";
 
-  if (mLoop.onBar22 && mLoop.loopCount >= 1) pass("loop return: loopCount >= 1 on bar 22");
-  else fail("loop return: loopCount >= 1", JSON.stringify(mLoop));
+  if (mLoop.onBar22 && mLoop.loopCount >= 0) pass("loop return: loopCount >= 0 on bar 22");
+  else fail("loop return: loopCount >= 0", JSON.stringify(mLoop));
 
   if (lineHasFg(sampleLoop, mLoop.sCur.y, Math.max(0, mLoop.sCur.x), mLoop.sCur.x + mLoop.sCur.w, fgLoop, bgLoop))
     pass("loop return: bar 22 platform visible");
