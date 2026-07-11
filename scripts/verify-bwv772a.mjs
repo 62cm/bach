@@ -431,33 +431,48 @@ async function main() {
     const fillToggle = await page.evaluate(() => {
       const T = window.__TEST__;
       T.setLoop(1);
-      const start = T.bar2122Filled(0);
-      const fall = T.bar2122Filled(T.FLASH16 * 0.5);
-      const land1 = T.bar2122Filled(T.FLASH16 + 0.01);
-      const air1 = T.bar2122Filled(T.FLASH16 * 1.5);
-      const end = T.bar2122Filled(T.BAR2122_DUR - 0.01);
-      const rest = T.restingFilled();
+      const solidToHollow = {
+        start: T.bar2122Filled(0),
+        fall: T.bar2122Filled(T.FLASH16 * 0.5),
+        touch1: T.bar2122Filled(T.FLASH16 + 0.01),
+        rise1: T.bar2122Filled(T.FLASH16 * 1.5),
+        touch2: T.bar2122Filled(T.FLASH16 * 2 + 0.01),
+        end: T.bar2122Filled(T.BAR2122_DUR - 0.01),
+        rest: T.restingFilled(),
+      };
       T.setLoop(2);
-      const land1Rev = T.bar2122Filled(T.FLASH16 + 0.01);
-      const after2 = T.restingFilled();
-      return { start, fall, land1, air1, end, rest, land1Rev, after2 };
+      const hollowToSolid = {
+        start: T.bar2122Filled(0),
+        fall: T.bar2122Filled(T.FLASH16 * 0.5),
+        touch1: T.bar2122Filled(T.FLASH16 + 0.01),
+        rise1: T.bar2122Filled(T.FLASH16 * 1.5),
+        touch2: T.bar2122Filled(T.FLASH16 * 2 + 0.01),
+        end: T.bar2122Filled(T.BAR2122_DUR - 0.01),
+        rest: T.restingFilled(),
+      };
+      return { solidToHollow, hollowToSolid };
     });
+    const s2h = fillToggle.solidToHollow;
+    const h2s = fillToggle.hollowToSolid;
     if (
-      fillToggle.start &&
-      !fillToggle.fall &&
-      fillToggle.land1 &&
-      !fillToggle.air1 &&
-      !fillToggle.end &&
-      !fillToggle.rest &&
-      !fillToggle.land1Rev &&
-      fillToggle.after2
+      s2h.start &&
+      s2h.fall &&
+      !s2h.touch1 &&
+      s2h.rise1 &&
+      !s2h.touch2 &&
+      !s2h.end &&
+      !s2h.rest &&
+      !h2s.start &&
+      !h2s.fall &&
+      h2s.touch1 &&
+      !h2s.rise1 &&
+      h2s.touch2 &&
+      h2s.end &&
+      h2s.rest
     ) {
-      pass("first 21→22: 实空实空… then alternate to solid");
+      pass("21→22: 21实，22触地空空中实，末保持");
     } else {
-      fail(
-        "first 21→22: fill pattern",
-        JSON.stringify(fillToggle)
-      );
+      fail("21→22: fill pattern", JSON.stringify(fillToggle));
     }
     const impacts = await page.evaluate(() => {
       const T = window.__TEST__;

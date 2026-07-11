@@ -371,22 +371,19 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     return loopCount % 2 === 0;
   }
 
-  /** 实空实空实空实空；末段保持；偶数 loop 整段反相 */
+  /** 21=实→22触地空、空中实；末触保持空；空→实反向 */
   function bar2122Filled(beat) {
-    const rev = loopCount % 2 === 0;
-    let solid;
-    if (beat < 1e-4) {
-      solid = prevRestingFilled();
-    } else if (beat < FLASH16) {
-      solid = false;
-    } else {
-      const local = beat - FLASH16;
-      const seg = Math.floor(local / FLASH16);
-      const u = (local % FLASH16) / FLASH16;
-      if (seg >= BAR2122_BOUNCES) solid = restingFilled();
-      else solid = u < 0.5;
+    const fromSolid = prevRestingFilled();
+    const touchFill = !fromSolid;
+    const airFill = fromSolid;
+    if (beat < FLASH16) return fromSolid;
+    const local = beat - FLASH16;
+    const seg = Math.floor(local / FLASH16);
+    if (seg >= BAR2122_BOUNCES) return touchFill;
+    for (let i = 1; i <= BAR2122_BOUNCES + 1; i++) {
+      if (Math.abs(beat - i * FLASH16) < 0.02) return touchFill;
     }
-    return rev ? !solid : solid;
+    return airFill;
   }
 
   function isStep21(plan) {
