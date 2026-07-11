@@ -98,6 +98,7 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
   const START_BEAT = (TOTAL_BARS - 1) * 4; // bar 22
 
   const REST = 0.25;
+  const FLASH32 = 1 / 8; // 32 分音符（四分拍为单位）
   const BIG = [0.25, 0.5, 0.75];
   const SMALL = [1.0, 1 + 1 / 6, 1 + 2 / 6, 1.5, 1.5 + 1 / 6, 1.5 + 2 / 6];
   const ALL_HITS = BIG.concat(SMALL);
@@ -337,17 +338,16 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     return plan === N_STEPS - 2;
   }
 
-  /** 球：loopCount<0 实心；21→22 REST 内实心/空心快闪；之后按奇偶保持 */
+  /** 球：loopCount<0 实心；21→22 落地闪夹心（32分×2）后持续目标态 */
   function ballFilled(tMus, ball, plan, beatInStep, stepIndex) {
     if (ball.impact) return true;
     if (loopCount < 0) return true;
-    if (isBar22(plan) && isRestEntry(tMus, plan, beatInStep, stepIndex)) {
-      const filled = loopCount % 2 === 1;
-      const flashMid = REST * 0.25;
-      const flashEnd = REST * 0.5;
-      if (beatInStep < flashMid) return !filled;
-      if (beatInStep < flashEnd) return filled;
-      return filled;
+    if (isBar22(plan) && !isFirstOpening(tMus) && beatInStep < FLASH32 * 2) {
+      const prevLoop = loopCount - 1;
+      const prevFilled = prevLoop < 0 || prevLoop % 2 === 1;
+      if (beatInStep < 1e-4) return !prevFilled;
+      if (beatInStep < FLASH32) return prevFilled;
+      return !prevFilled;
     }
     return loopCount % 2 === 1;
   }
