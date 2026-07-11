@@ -337,19 +337,18 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     return plan === N_STEPS - 2;
   }
 
-  /** 球：loopCount<0 实心；首次 21→22 落地 loopCount===1 闪空心；之后奇数实心偶数空心 */
+  /** 球：loopCount<0 实心；21→22 REST 内实心/空心快闪；之后按奇偶保持 */
   function ballFilled(tMus, ball, plan, beatInStep, stepIndex) {
     if (ball.impact) return true;
-    if (
-      isBar22(plan) &&
-      isRestEntry(tMus, plan, beatInStep, stepIndex) &&
-      loopCount === 1
-    ) {
-      if (beatInStep < REST * 0.5) return false;
-      if (beatInStep < REST) return true;
-      return false;
-    }
     if (loopCount < 0) return true;
+    if (isBar22(plan) && isRestEntry(tMus, plan, beatInStep, stepIndex)) {
+      const filled = loopCount % 2 === 1;
+      const flashMid = REST * 0.25;
+      const flashEnd = REST * 0.5;
+      if (beatInStep < flashMid) return !filled;
+      if (beatInStep < flashEnd) return filled;
+      return filled;
+    }
     return loopCount % 2 === 1;
   }
 
