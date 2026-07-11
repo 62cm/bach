@@ -414,6 +414,8 @@ async function main() {
     } else {
       fail("first 21→22: step 21 during REST", `sPrev=${JSON.stringify(m2122.sPrev)}`);
     }
+    if (m2122.loopCount === 1) pass("first 21→22: loopCount becomes 1");
+    else fail("first 21→22: loopCount becomes 1", `loopCount=${m2122.loopCount}`);
   }
 
   // --- 1d. After intro on bar 1: no ghost step 21 on the left ---
