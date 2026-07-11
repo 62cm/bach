@@ -276,6 +276,48 @@ async function main() {
   if (mEntry.ball.x < mEntry.ball.x + 1 && mEntry.ball.x < 200) pass("opening: ball enters from left");
   else fail("opening: ball enters from left", `ball.x=${mEntry.ball.x}`);
 
+  // --- 1b. First playthrough on step 21: full platform while loopCount still -1 ---
+  await page.evaluate(() => window.__TEST__.boot());
+  let tFirst21 = null;
+  let mFirst21 = null;
+  for (let b = T.INTRO_TOTAL_BEATS + 4; b < T.PIECE_BEATS - 2; b += 0.05) {
+    const t = (T.START_BEAT + b) * T.BEAT;
+    await page.evaluate(
+      (tt) => {
+        window.__TEST__.trackAt(tt);
+      },
+      t
+    );
+    const m = await meta(page, t);
+    if (m.plan === T.N_STEPS - 2 && m.loopCount < 0) {
+      tFirst21 = t;
+      mFirst21 = m;
+      break;
+    }
+  }
+  if (!tFirst21) {
+    fail("first play: step 21 frame while loopCount -1", "no frame");
+  } else {
+    const sampleFirst21 = await drawAndSample(page, tFirst21);
+    const fg21 = mFirst21.plan % 2 === 1 ? "#0d0d0d" : "#cccccc";
+    const bg21 = mFirst21.plan % 2 === 1 ? "#cccccc" : "#0d0d0d";
+    if (
+      lineHasFg(
+        sampleFirst21,
+        mFirst21.sCur.y,
+        Math.max(0, mFirst21.sCur.x),
+        mFirst21.sCur.x + mFirst21.sCur.w,
+        fg21,
+        bg21,
+        4
+      )
+    ) {
+      pass("first play: step 21 full width while loopCount -1");
+    } else {
+      fail("first play: step 21 full width while loopCount -1", JSON.stringify(mFirst21.sCur));
+    }
+  }
+
   // --- 2. Loop return: bar 21 visible + bar 22 platform ---
   const tLoop22 = (T.START_BEAT + T.PIECE_BEATS + 1) * T.BEAT;
   await page.evaluate(() => {
@@ -457,7 +499,7 @@ async function main() {
 
   console.log("");
   if (failures.length === 0) {
-    console.log(`All ${12} checks passed.`);
+    console.log(`All ${14} checks passed.`);
     process.exit(0);
   } else {
     console.log(`${failures.length} check(s) failed.`);

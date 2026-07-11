@@ -639,7 +639,7 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
 
     for (let i = mid - 3; i <= mid + 3; i++) {
       const plan = planOf(i);
-      if (loopCount < 0 && isStep21(plan)) continue;
+      if (loopCount < 0 && onBar22 && isStep21(plan)) continue;
       if (loopCount < 0 && onBar22 && i < mid) continue;
 
       const s = stepScreen(i, scrollX, tMus);
@@ -679,7 +679,7 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
       ctx.fillText(label, s.x + s.w * 0.5, s.y + 22);
     }
 
-    if (inRestFall && !(loopCount < 0 && isStep21(planOf(mid - 1)))) {
+    if (inRestFall) {
       const sPrev = stepScreen(mid - 1, scrollX, tMus);
       const sCur = stepScreen(mid, scrollX, tMus);
       const xJoin = sPrev.x + sPrev.w;
