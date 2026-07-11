@@ -201,7 +201,7 @@ async function main() {
 
   // --- 0. Before start: idle bar 22 preview (right block visible)
   const preStart = await samplePage(page);
-  const preLine = lineHasFg(preStart, 209, 330, 450, "#cccccc", "#0d0d0d", 4);
+  const preLine = lineHasFg(preStart, 209, 230, 350, "#cccccc", "#0d0d0d", 4);
   if (preLine) pass("pre-start: bar 22 idle platform visible");
   else fail("pre-start: bar 22 idle platform visible", "no fg on platform");
 
@@ -225,8 +225,8 @@ async function main() {
     lineHasFg(
       sampleOpen,
       y22,
-      Math.max(0, mOpen.sCur.x + 100),
-      mOpen.sCur.x + mOpen.sCur.w,
+      Math.max(0, mOpen.sCur.x),
+      mOpen.sCur.x + 100,
       fgOpen,
       bgOpen
     )
