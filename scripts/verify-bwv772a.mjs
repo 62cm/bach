@@ -602,7 +602,7 @@ async function main() {
 
   console.log("");
   if (failures.length === 0) {
-    console.log(`All ${17} checks passed.`);
+    console.log(`All ${19} checks passed.`);
     process.exit(0);
   } else {
     console.log(`${failures.length} check(s) failed.`);
