@@ -46,7 +46,7 @@ const INJECT = `
     PIECE_BEATS,
     N_STEPS,
     INTRO_TOTAL_BEATS,
-    STEP21_SHOW_AFTER,
+    FIRST_PLAY_BAR_SHOW_AFTER,
     REST,
     W,
     H,
@@ -324,7 +324,7 @@ async function main() {
     fgEarly,
     bgEarly
   );
-  if (mEarly.onBar22 && mEarly.loopCount < 0 && tBar22Early < (await page.evaluate(() => window.__TEST__.STEP21_SHOW_AFTER))) {
+  if (mEarly.onBar22 && mEarly.loopCount < 0 && tBar22Early < (await page.evaluate(() => window.__TEST__.FIRST_PLAY_BAR_SHOW_AFTER))) {
     if (early21 < 0.08) pass("first play before 2 bars: no step 21 on bar 22");
     else fail("first play before 2 bars: no step 21 on bar 22", `ratio=${early21.toFixed(3)} s21=${JSON.stringify(s21Early)}`);
   } else {
