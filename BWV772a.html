@@ -126,8 +126,8 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
   const INTRO_OFFSCREEN_BEATS = INTRO_TOTAL_BEATS - INTRO_VISIBLE_BEATS;
   const INTRO_EXTRA_BEATS = INTRO_OFFSCREEN_BEATS;
   const AUDIO_START = PIECE_DUR; // 曲谱时间：22 过完才出声
-  /** 首次双击开场结束前：不画左侧台阶与第 21 小节 */
-  const STEP21_HIDE_UNTIL = START_BEAT * BEAT + INTRO_TOTAL_BEATS * BEAT;
+  /** 第 0 次播放：前 2 小节不画第 21 台阶；loopCount>=0 后始终正常画 */
+  const STEP21_SHOW_AFTER = START_BEAT * BEAT + 4 * 2 * BEAT;
 
   const N_STEPS = STEPS.length;
 
@@ -595,11 +595,14 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     return plan % 2 === 1 ? { bg: LIGHT, fg: DARK } : { bg: DARK, fg: LIGHT };
   }
 
-  function skipStepDuringFirstIntro(tMus, plan, i, mid) {
-    if (loopCount >= 0 || tMus >= STEP21_HIDE_UNTIL) return false;
-    if (isStep21(plan)) return true;
-    if (i < mid) return true;
-    return false;
+  function isBar21Platform(plan) {
+    return plan === N_STEPS - 2 || plan === N_STEPS - 3;
+  }
+
+  function hideStep21(tMus, plan) {
+    if (loopCount >= 0) return false;
+    if (tMus >= STEP21_SHOW_AFTER) return false;
+    return isBar21Platform(plan);
   }
 
   function draw(tMus) {
@@ -651,7 +654,7 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
       const mid = idlePlan;
       for (let i = mid - 3; i <= mid + 3; i++) {
         const plan = planOf(i);
-        if (skipStepDuringFirstIntro(tIdle, plan, i, mid)) continue;
+        if (hideStep21(tIdle, plan)) continue;
         const s = stepScreen(i, scrollX, tIdle);
         if (s.x > W + 40 || s.x + s.w < -40) continue;
         drawOneStep(ctx, fg, s, plan, false, isBar22(plan) ? "0" : null);
@@ -673,7 +676,7 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
 
     for (let i = mid - 3; i <= mid + 3; i++) {
       const plan = planOf(i);
-      if (skipStepDuringFirstIntro(tMus, plan, i, mid)) continue;
+      if (hideStep21(tMus, plan)) continue;
 
       const s = stepScreen(i, scrollX, tMus);
       if (s.x > W + 40 || s.x + s.w < -40) continue;
