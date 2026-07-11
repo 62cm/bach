@@ -434,8 +434,9 @@ async function main() {
       const solidToHollow = {
         start: T.bar2122Filled(0),
         fall: T.bar2122Filled(T.FLASH16 * 0.5),
-        land1: T.bar2122Filled(T.FLASH16 + 0.01),
+        touch1: T.bar2122Filled(T.FLASH16 + 0.01),
         rise1: T.bar2122Filled(T.FLASH16 * 1.5),
+        touch2: T.bar2122Filled(T.FLASH16 * 2 + 0.01),
         end: T.bar2122Filled(T.BAR2122_DUR - 0.01),
         rest: T.restingFilled(),
       };
@@ -443,8 +444,9 @@ async function main() {
       const hollowToSolid = {
         start: T.bar2122Filled(0),
         fall: T.bar2122Filled(T.FLASH16 * 0.5),
-        land1: T.bar2122Filled(T.FLASH16 + 0.01),
+        touch1: T.bar2122Filled(T.FLASH16 + 0.01),
         rise1: T.bar2122Filled(T.FLASH16 * 1.5),
+        touch2: T.bar2122Filled(T.FLASH16 * 2 + 0.01),
         end: T.bar2122Filled(T.BAR2122_DUR - 0.01),
         rest: T.restingFilled(),
       };
@@ -454,19 +456,21 @@ async function main() {
     const h2s = fillToggle.hollowToSolid;
     if (
       s2h.start &&
-      !s2h.fall &&
-      !s2h.land1 &&
-      !s2h.rise1 &&
+      s2h.fall &&
+      !s2h.touch1 &&
+      s2h.rise1 &&
+      !s2h.touch2 &&
       !s2h.end &&
       !s2h.rest &&
       !h2s.start &&
-      h2s.fall &&
-      !h2s.land1 &&
+      !h2s.fall &&
+      h2s.touch1 &&
       !h2s.rise1 &&
+      h2s.touch2 &&
       h2s.end &&
       h2s.rest
     ) {
-      pass("21→22: 实→空 / 空→实，触地上升皆空");
+      pass("21→22: 21实，22触地空空中实，末保持");
     } else {
       fail("21→22: fill pattern", JSON.stringify(fillToggle));
     }
