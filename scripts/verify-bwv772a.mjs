@@ -362,6 +362,45 @@ async function main() {
     }
   }
 
+  // --- 1d. After intro on bar 1: no ghost step 21 on the left ---
+  await page.evaluate(() => window.__TEST__.boot());
+  let tBar1 = null;
+  for (let b = T.INTRO_TOTAL_BEATS + 0.5; b < T.PIECE_BEATS; b += 0.05) {
+    const t = (T.START_BEAT + b) * T.BEAT;
+    await page.evaluate((tt) => window.__TEST__.trackAt(tt), t);
+    const m = await meta(page, t);
+    if (m.plan === 0 && m.loopCount < 0) {
+      tBar1 = t;
+      break;
+    }
+  }
+  if (!tBar1) {
+    fail("after intro: find bar 1 frame", "no frame");
+  } else {
+    const sampleBar1 = await drawAndSample(page, tBar1);
+    const mBar1 = await meta(page, tBar1);
+    const fg1 = mBar1.plan % 2 === 1 ? "#0d0d0d" : "#cccccc";
+    const bg1 = mBar1.plan % 2 === 1 ? "#cccccc" : "#0d0d0d";
+    const s21 = await page.evaluate((t) => {
+      const T = window.__TEST__;
+      const loc = T.locate(t);
+      const sx = T.scrollXAt(t);
+      const i21 = loc.stepIndex - loc.plan + (T.N_STEPS - 2);
+      return T.stepScreen(i21, sx, t);
+    }, tBar1);
+    const ghost21 = regionFgRatio(
+      sampleBar1,
+      Math.max(0, s21.x),
+      s21.y - 2,
+      s21.x + s21.w,
+      s21.y + 2,
+      fg1,
+      bg1
+    );
+    if (ghost21 < 0.05) pass("after intro: no ghost step 21 on bar 1");
+    else fail("after intro: ghost step 21 on bar 1", `ratio=${ghost21.toFixed(3)} s21=${JSON.stringify(s21)}`);
+  }
+
   // --- 2. Loop return: bar 21 visible + bar 22 platform ---
   const tLoop22 = (T.START_BEAT + T.PIECE_BEATS + 1) * T.BEAT;
   await page.evaluate(() => {
@@ -543,7 +582,7 @@ async function main() {
 
   console.log("");
   if (failures.length === 0) {
-    console.log(`All ${15} checks passed.`);
+    console.log(`All ${16} checks passed.`);
     process.exit(0);
   } else {
     console.log(`${failures.length} check(s) failed.`);
