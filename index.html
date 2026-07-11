@@ -593,80 +593,21 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     return plan % 2 === 1 ? { bg: LIGHT, fg: DARK } : { bg: DARK, fg: LIGHT };
   }
 
-  /** loopCount<0：21 只在走到 21 / 21→22 时画；不画当前位置之后的未来台阶 */
-  function shouldDrawStep(tMus, midPlan, plan, beatInStep, mid, i) {
-    if (isStep21(plan)) {
-      if (loopCount >= 0) return true;
-      if (isFirstOpening(tMus)) return false;
-      if (midPlan === N_STEPS - 2) return true;
-      if (isBar22(midPlan) && isRestEntry(tMus, midPlan, beatInStep, mid)) return true;
-      return false;
-    }
-    if (loopCount < 0) {
-      if (isFirstOpening(tMus) && !isBar22(plan)) return false;
-      if (i > mid && !isBar22(plan)) return false;
-    }
+  function skipStep21Draw(tMus, midPlan, plan, beatInStep, mid) {
+    if (!isStep21(plan)) return false;
+    if (loopCount >= 0) return false;
+    if (isFirstOpening(tMus)) return true;
+    if (midPlan === N_STEPS - 2) return false;
+    if (isBar22(midPlan) && isRestEntry(tMus, midPlan, beatInStep, mid)) return false;
     return true;
-  }
-
-  function drawBar22Step(ctx, fg, s, label) {
-    ctx.strokeStyle = fg;
-    ctx.beginPath();
-    ctx.moveTo(s.x, s.y);
-    ctx.lineTo(s.x + s.w, s.y);
-    ctx.lineTo(s.x + s.w, s.y + STEP_H + 40);
-    ctx.stroke();
-    if (s.x >= -40) {
-      ctx.beginPath();
-      ctx.moveTo(s.x, s.y);
-      ctx.lineTo(s.x, s.y + STEP_H + 40);
-      ctx.stroke();
-    }
-    ctx.fillStyle = fg;
-    ctx.font = "600 18px system-ui, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(label, s.x + s.w * 0.5, s.y + 22);
   }
 
   function draw(tMus) {
     const idlePlan = N_STEPS - 1;
-    const idleColors = colorsForBar(idlePlan);
-    if (!started) {
-      const tIdle = START_BEAT * BEAT;
-      const scrollX = cumWidthUpTo(idlePlan) + stepWidth(idlePlan);
-      const { bg, fg } = idleColors;
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, W, H);
-      const s22 = stepScreen(idlePlan, scrollX, tIdle);
-      ctx.lineWidth = 2.5;
-      drawBar22Step(ctx, fg, s22, "0");
-      return;
-    }
+    const preview = !started;
 
-    const scrollX = scrollXAt(tMus);
-    const ball = ballState(tMus);
-    const { bg, fg } = colorsForBar(ball.bar);
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, W, H);
-
-    const loc = locate(tMus);
-    const mid = loc.stepIndex;
-    const midPlan = planOf(mid);
-    const onBar22 = isBar22(midPlan);
-    const inRestFall = isRestEntry(tMus, midPlan, loc.beatInStep, mid);
-    ctx.lineWidth = 2.5;
-
-    for (let i = mid - 3; i <= mid + 3; i++) {
-      const plan = planOf(i);
-      if (!shouldDrawStep(tMus, midPlan, plan, loc.beatInStep, mid, i)) continue;
-
-      const s = stepScreen(i, scrollX, tMus);
-      if (s.x > W + 40 || s.x + s.w < -40) continue;
-
-      const omitDropVert = inRestFall && i === mid - 1;
+    function drawOneStep(ctx, fg, s, plan, omitDropVert, labelOverride) {
       const barIs22 = isBar22(plan);
-
       ctx.strokeStyle = fg;
       ctx.beginPath();
       ctx.moveTo(s.x, s.y);
@@ -684,18 +625,60 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
         ctx.lineTo(s.x, s.y + STEP_H + 40);
         ctx.stroke();
       }
-
       ctx.fillStyle = fg;
       ctx.font = "600 18px system-ui, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      const label = barIs22
-        ? flatStepLabel()
-        : String(
-            STEPS[plan].bar ||
-              Math.floor((STEPS[plan].slot != null ? STEPS[plan].slot : plan) / 2) + 1
-          );
+      const label =
+        labelOverride != null
+          ? labelOverride
+          : barIs22
+            ? flatStepLabel()
+            : String(
+                STEPS[plan].bar ||
+                  Math.floor((STEPS[plan].slot != null ? STEPS[plan].slot : plan) / 2) + 1
+              );
       ctx.fillText(label, s.x + s.w * 0.5, s.y + 22);
+    }
+
+    if (preview) {
+      const tIdle = START_BEAT * BEAT;
+      const scrollX = cumWidthUpTo(idlePlan);
+      const { bg, fg } = colorsForBar(idlePlan);
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+      ctx.lineWidth = 2.5;
+      const mid = idlePlan;
+      for (let i = mid - 3; i <= mid + 3; i++) {
+        const plan = planOf(i);
+        const s = stepScreen(i, scrollX, tIdle);
+        if (s.x > W + 40 || s.x + s.w < -40) continue;
+        drawOneStep(ctx, fg, s, plan, false, isBar22(plan) ? "0" : null);
+      }
+      return;
+    }
+
+    const scrollX = scrollXAt(tMus);
+    const ball = ballState(tMus);
+    const { bg, fg } = colorsForBar(ball.bar);
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    const loc = locate(tMus);
+    const mid = loc.stepIndex;
+    const midPlan = planOf(mid);
+    const inRestFall = isRestEntry(tMus, midPlan, loc.beatInStep, mid);
+    ctx.lineWidth = 2.5;
+
+    for (let i = mid - 3; i <= mid + 3; i++) {
+      const plan = planOf(i);
+      if (skipStep21Draw(tMus, midPlan, plan, loc.beatInStep, mid)) continue;
+
+      const s = stepScreen(i, scrollX, tMus);
+      if (s.x > W + 40 || s.x + s.w < -40) continue;
+
+      const omitDropVert = inRestFall && i === mid - 1;
+      drawOneStep(ctx, fg, s, plan, omitDropVert, null);
     }
 
     if (inRestFall) {

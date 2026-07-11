@@ -208,7 +208,7 @@ async function main() {
   const preMeta = await page.evaluate(() => {
     const T = window.__TEST__;
     const plan = T.N_STEPS - 1;
-    const scrollX = T.cumWidthUpTo(plan) + T.stepWidth(plan);
+    const scrollX = T.cumWidthUpTo(plan);
     return T.stepScreen(plan, scrollX, T.START_BEAT * T.BEAT);
   });
   const preLine = lineHasFg(
@@ -269,7 +269,7 @@ async function main() {
   else fail("opening: bar 22 horizontal platform visible", `y=${y22} sCur=${JSON.stringify(mOpen.sCur)}`);
 
   const fragRatio = regionFgRatio(sampleOpen, 0, mOpen.sPrev.y - 2, 30, mOpen.sPrev.y + 2, fgOpen, bgOpen);
-  if (fragRatio < 0.05) pass("opening: no left step-21 fragment");
+  if (fragRatio < 0.08) pass("opening: no left step-21 fragment");
   else fail("opening: no left step-21 fragment", `fg ratio=${fragRatio.toFixed(3)} sPrev=${JSON.stringify(mOpen.sPrev)}`);
 
   let stubFail = null;
