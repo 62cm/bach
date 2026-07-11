@@ -594,19 +594,20 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     return plan % 2 === 1 ? { bg: LIGHT, fg: DARK } : { bg: DARK, fg: LIGHT };
   }
 
+  /** 首次循环：22 仍占 200px 滚动宽度，只画左块 100px，数字在左块 */
   function drawBar22FirstRound(ctx, fg, s, omitDropVert, label) {
-    const x0 = s.x + STEP_W_PER_2BEATS;
+    const xR = s.x + STEP_W_PER_2BEATS;
     ctx.strokeStyle = fg;
     ctx.beginPath();
-    ctx.moveTo(x0, s.y);
-    ctx.lineTo(s.x + s.w, s.y);
-    if (!omitDropVert) ctx.lineTo(s.x + s.w, s.y + STEP_H + 40);
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(xR, s.y);
+    if (!omitDropVert) ctx.lineTo(xR, s.y + STEP_H + 40);
     ctx.stroke();
     ctx.fillStyle = fg;
     ctx.font = "600 18px system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(label, x0 + STEP_W_PER_2BEATS * 0.5, s.y + 22);
+    ctx.fillText(label, s.x + STEP_W_PER_2BEATS * 0.5, s.y + 22);
   }
 
   function draw(tMus) {
