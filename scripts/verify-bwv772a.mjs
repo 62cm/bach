@@ -55,6 +55,9 @@ const INJECT = `
     STEP_H,
     cumDropUpTo,
     cumWidthUpTo,
+    stepWidth,
+    BX,
+    BALL_R,
   };
 `;
 
@@ -204,8 +207,9 @@ async function main() {
   const preStart = await samplePage(page);
   const preMeta = await page.evaluate(() => {
     const T = window.__TEST__;
-    const scrollX = T.cumWidthUpTo(T.N_STEPS - 1);
-    return T.stepScreen(T.N_STEPS - 1, scrollX, T.START_BEAT * T.BEAT);
+    const plan = T.N_STEPS - 1;
+    const scrollX = T.cumWidthUpTo(plan) + T.stepWidth(plan);
+    return T.stepScreen(plan, scrollX, T.START_BEAT * T.BEAT);
   });
   const preLine = lineHasFg(
     preStart,
@@ -218,6 +222,22 @@ async function main() {
   );
   if (preLine) pass("pre-start: bar 22 idle platform visible");
   else fail("pre-start: bar 22 idle platform visible", "no fg on platform");
+
+  const preLeft = fgAt(preStart, Math.max(5, preMeta.x), preMeta.y, "#cccccc", "#0d0d0d");
+  if (preLeft) pass("pre-start: bar 22 left edge visible");
+  else fail("pre-start: bar 22 left edge visible", JSON.stringify(preMeta));
+
+  const preBall = regionFgRatio(
+    preStart,
+    preMeta.x,
+    preMeta.y - 80,
+    preMeta.x + preMeta.w,
+    preMeta.y - 20,
+    "#cccccc",
+    "#0d0d0d"
+  );
+  if (preBall < 0.05) pass("pre-start: no ball");
+  else fail("pre-start: no ball", `ratio=${preBall.toFixed(3)}`);
 
   await page.evaluate(() => window.__TEST__.boot());
   const tOpen = (T.START_BEAT + T.INTRO_TOTAL_BEATS * 0.5) * T.BEAT;
@@ -582,7 +602,7 @@ async function main() {
 
   console.log("");
   if (failures.length === 0) {
-    console.log(`All ${16} checks passed.`);
+    console.log(`All ${19} checks passed.`);
     process.exit(0);
   } else {
     console.log(`${failures.length} check(s) failed.`);

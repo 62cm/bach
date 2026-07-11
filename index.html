@@ -593,8 +593,8 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     return plan % 2 === 1 ? { bg: LIGHT, fg: DARK } : { bg: DARK, fg: LIGHT };
   }
 
-  /** loopCount<0：21 只在真正走到 21 或 21→22 时画；intro 只画 22 */
-  function shouldDrawStep(tMus, midPlan, plan, beatInStep, mid) {
+  /** loopCount<0：21 只在走到 21 / 21→22 时画；不画当前位置之后的未来台阶 */
+  function shouldDrawStep(tMus, midPlan, plan, beatInStep, mid, i) {
     if (isStep21(plan)) {
       if (loopCount >= 0) return true;
       if (isFirstOpening(tMus)) return false;
@@ -602,8 +602,31 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
       if (isBar22(midPlan) && isRestEntry(tMus, midPlan, beatInStep, mid)) return true;
       return false;
     }
-    if (loopCount < 0 && isFirstOpening(tMus) && !isBar22(plan)) return false;
+    if (loopCount < 0) {
+      if (isFirstOpening(tMus) && !isBar22(plan)) return false;
+      if (i > mid && !isBar22(plan)) return false;
+    }
     return true;
+  }
+
+  function drawBar22Step(ctx, fg, s, label) {
+    ctx.strokeStyle = fg;
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(s.x + s.w, s.y);
+    ctx.lineTo(s.x + s.w, s.y + STEP_H + 40);
+    ctx.stroke();
+    if (s.x >= -40) {
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.x, s.y + STEP_H + 40);
+      ctx.stroke();
+    }
+    ctx.fillStyle = fg;
+    ctx.font = "600 18px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, s.x + s.w * 0.5, s.y + 22);
   }
 
   function draw(tMus) {
@@ -611,29 +634,13 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     const idleColors = colorsForBar(idlePlan);
     if (!started) {
       const tIdle = START_BEAT * BEAT;
-      const scrollX = cumWidthUpTo(idlePlan);
+      const scrollX = cumWidthUpTo(idlePlan) + stepWidth(idlePlan);
       const { bg, fg } = idleColors;
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, W, H);
       const s22 = stepScreen(idlePlan, scrollX, tIdle);
       ctx.lineWidth = 2.5;
-      ctx.strokeStyle = fg;
-      ctx.beginPath();
-      ctx.moveTo(s22.x, s22.y);
-      ctx.lineTo(s22.x + s22.w, s22.y);
-      ctx.lineTo(s22.x + s22.w, s22.y + STEP_H + 40);
-      ctx.stroke();
-      if (s22.x >= -40) {
-        ctx.beginPath();
-        ctx.moveTo(s22.x, s22.y);
-        ctx.lineTo(s22.x, s22.y + STEP_H + 40);
-        ctx.stroke();
-      }
-      ctx.fillStyle = fg;
-      ctx.font = "600 18px system-ui, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("0", s22.x + s22.w * 0.5, s22.y + 22);
+      drawBar22Step(ctx, fg, s22, "0");
       return;
     }
 
@@ -652,7 +659,7 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
 
     for (let i = mid - 3; i <= mid + 3; i++) {
       const plan = planOf(i);
-      if (!shouldDrawStep(tMus, midPlan, plan, loc.beatInStep, mid)) continue;
+      if (!shouldDrawStep(tMus, midPlan, plan, loc.beatInStep, mid, i)) continue;
 
       const s = stepScreen(i, scrollX, tMus);
       if (s.x > W + 40 || s.x + s.w < -40) continue;
