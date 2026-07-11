@@ -46,6 +46,7 @@ const INJECT = `
     PIECE_BEATS,
     N_STEPS,
     INTRO_TOTAL_BEATS,
+    STEP21_HIDE_UNTIL,
     REST,
     W,
     H,
