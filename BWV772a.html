@@ -622,11 +622,6 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
       const s22 = stepScreen(idlePlan, scrollX, tIdle);
       ctx.lineWidth = 2.5;
       drawBar22FirstRound(ctx, fg, s22, false, "0");
-      ctx.beginPath();
-      ctx.arc(BX, s22.y - BALL_R, BALL_R, 0, Math.PI * 2);
-      ctx.fillStyle = fg;
-      ctx.fill();
-      ctx.stroke();
       return;
     }
 
