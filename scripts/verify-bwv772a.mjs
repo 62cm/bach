@@ -43,10 +43,12 @@ const INJECT = `
     ballState,
     ballFilled,
     bar2122Filled,
+    bar2122BallY,
     restingFilled,
+    bar2122Impact,
     BAR2122_DUR,
+    BAR2122_BOUNCES,
     FLASH16,
-    FLASH32,
     START_BEAT,
     BEAT,
     PIECE_BEATS,
@@ -196,6 +198,8 @@ async function main() {
       PIECE_BEATS: x.PIECE_BEATS,
       INTRO_TOTAL_BEATS: x.INTRO_TOTAL_BEATS,
       REST: x.REST,
+      BAR2122_DUR: x.BAR2122_DUR,
+      BAR2122_BOUNCES: x.BAR2122_BOUNCES,
       N_STEPS: x.N_STEPS,
     };
   });
@@ -382,8 +386,9 @@ async function main() {
   // --- 1c. First 21→22 REST: step 21 platform visible (not hidden like intro) ---
   await page.evaluate(() => window.__TEST__.boot());
   let tFirst2122 = null;
+  let bFirst2122 = null;
   let m2122 = null;
-  for (let b = T.INTRO_TOTAL_BEATS; b < T.PIECE_BEATS + T.REST; b += 0.01) {
+  for (let b = T.INTRO_TOTAL_BEATS; b < T.PIECE_BEATS + T.BAR2122_DUR; b += 0.01) {
     const t = (T.START_BEAT + b) * T.BEAT;
     await page.evaluate((tt) => window.__TEST__.trackAt(tt), t);
     const m = await meta(page, t);
@@ -392,9 +397,10 @@ async function main() {
       m.plan === T.N_STEPS - 1 &&
       m.sPrev.w === 100 &&
       m.beatInStep > 0.05 &&
-      m.beatInStep < T.REST
+      m.beatInStep < T.BAR2122_DUR
     ) {
       tFirst2122 = t;
+      bFirst2122 = b;
       m2122 = m;
       break;
     }
@@ -425,19 +431,70 @@ async function main() {
     const fillToggle = await page.evaluate(() => {
       const T = window.__TEST__;
       T.setLoop(1);
-      const after = T.bar2122Filled(T.BAR2122_DUR + 0.01);
+      const start = T.bar2122Filled(0);
+      const fall = T.bar2122Filled(T.FLASH16 * 0.5);
+      const land1 = T.bar2122Filled(T.FLASH16 + 0.01);
+      const air1 = T.bar2122Filled(T.FLASH16 * 1.5);
+      const end = T.bar2122Filled(T.BAR2122_DUR - 0.01);
       const rest = T.restingFilled();
       T.setLoop(2);
+      const land1Rev = T.bar2122Filled(T.FLASH16 + 0.01);
       const after2 = T.restingFilled();
-      return { after, rest, after2 };
+      return { start, fall, land1, air1, end, rest, land1Rev, after2 };
     });
-    if (!fillToggle.after && !fillToggle.rest && fillToggle.after2) {
-      pass("first 21→22: solid→hollow then alternate to solid");
+    if (
+      fillToggle.start &&
+      !fillToggle.fall &&
+      fillToggle.land1 &&
+      !fillToggle.air1 &&
+      !fillToggle.end &&
+      !fillToggle.rest &&
+      !fillToggle.land1Rev &&
+      fillToggle.after2
+    ) {
+      pass("first 21→22: 实空实空… then alternate to solid");
     } else {
       fail(
-        "first 21→22: solid→hollow toggle",
+        "first 21→22: fill pattern",
         JSON.stringify(fillToggle)
       );
+    }
+    const impacts = await page.evaluate(() => {
+      const T = window.__TEST__;
+      const hits = [];
+      for (let i = 1; i <= T.BAR2122_BOUNCES + 1; i++) {
+        hits.push(T.bar2122Impact(i * T.FLASH16));
+      }
+      return hits;
+    });
+    if (impacts.every(Boolean) && impacts.length === 4) {
+      pass("21→22: three bounces + final hold touch");
+    } else {
+      fail("21→22: touch points", JSON.stringify(impacts));
+    }
+    const bouncePeaks = await page.evaluate(() => {
+      const T = window.__TEST__;
+      const g0 = 300;
+      const g = 400;
+      const ys = [];
+      for (let i = 0; i < T.BAR2122_BOUNCES; i++) {
+        const mid = T.FLASH16 * (1.5 + i);
+        ys.push(T.bar2122BallY(mid, g0, g));
+      }
+      const hold = T.bar2122BallY(T.BAR2122_DUR - 0.01, g0, g);
+      return { ys, hold, g };
+    });
+    const peaks = bouncePeaks.ys.map((y) => bouncePeaks.g - y);
+    const peakDrop =
+      peaks.length >= 2 ? peaks[0] - peaks[peaks.length - 1] : 0;
+    if (
+      peaks.every((p) => p > 4) &&
+      peakDrop > 2 &&
+      Math.abs(bouncePeaks.hold - bouncePeaks.g) < 1
+    ) {
+      pass("21→22: bounce heights 1/2/4 then flat hold");
+    } else {
+      fail("21→22: bounce heights", JSON.stringify({ peaks, hold: bouncePeaks.hold, g: bouncePeaks.g }));
     }
   }
 
@@ -510,20 +567,24 @@ async function main() {
     pass("loop return: step 21 platform visible");
   else fail("loop return: step 21 visible", `sPrev=${JSON.stringify(mLoop.sPrev)}`);
 
-  // --- 2b. 21→22: smooth lift (not instant jump) ---
+  // --- 2b. 21→22 loop: smooth lift + three bounces ---
+  if (!bFirst2122) {
+    fail("21→22 loop: need first landing offset", "missing bFirst2122");
+  } else {
   await page.evaluate(() => window.__TEST__.boot());
-  const tLoopStart = (T.START_BEAT + T.PIECE_BEATS - 0.5) * T.BEAT;
-  const tLoopEnd = (T.START_BEAT + T.PIECE_BEATS + 0.5) * T.BEAT;
+  const bLoop2122 = bFirst2122 + T.PIECE_BEATS;
+  const tLoopSimEnd = (T.START_BEAT + bLoop2122 + T.BAR2122_DUR) * T.BEAT;
   await page.evaluate(
     (t0, t1) => {
       window.__TEST__.runTrack(t0, t1, 0.005);
     },
     T.START_BEAT * T.BEAT,
-    tLoopEnd
+    tLoopSimEnd
   );
+  const tLoop2122 = (T.START_BEAT + bLoop2122) * T.BEAT;
   const liftYs = [];
-  for (let b = 0; b <= T.REST; b += 0.02) {
-    const t = (T.START_BEAT + T.PIECE_BEATS + b) * T.BEAT;
+  for (let b = 0; b <= T.BAR2122_DUR; b += 0.02) {
+    const t = tLoop2122 + b * T.BEAT;
     const y = await page.evaluate((t) => {
       const x = window.__TEST__;
       const l = x.locate(t);
@@ -542,8 +603,8 @@ async function main() {
 
   const ballYs = [];
   const stepYs = [];
-  for (let b = 0; b <= T.REST; b += 0.02) {
-    const t = (T.START_BEAT + T.PIECE_BEATS + b) * T.BEAT;
+  for (let b = 0; b <= T.BAR2122_DUR; b += 0.02) {
+    const t = tLoop2122 + b * T.BEAT;
     const sample = await page.evaluate((t) => {
       const x = window.__TEST__;
       const l = x.locate(t);
@@ -571,6 +632,7 @@ async function main() {
       "21→22: ball bounces on REST entry",
       `stepLift=${stepLift.toFixed(1)} ballRange=${ballRange.toFixed(1)} maxBallStep=${maxBallStep.toFixed(1)}`
     );
+  }
   }
 
   // --- 3. 22→1 drop: bar 22 horizontal + drop join ---
