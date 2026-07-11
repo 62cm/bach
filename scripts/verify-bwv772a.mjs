@@ -37,6 +37,7 @@ const INJECT = `
     scrollXAt,
     stepScreen,
     isBar22,
+    isFirstOpening,
     planOf,
     stepKind,
     ballState,
@@ -318,6 +319,49 @@ async function main() {
     }
   }
 
+  // --- 1c. First 21→22 REST: step 21 platform visible (not hidden like intro) ---
+  await page.evaluate(() => window.__TEST__.boot());
+  let tFirst2122 = null;
+  let m2122 = null;
+  for (let b = T.INTRO_TOTAL_BEATS; b < T.PIECE_BEATS + T.REST; b += 0.01) {
+    const t = (T.START_BEAT + b) * T.BEAT;
+    await page.evaluate((tt) => window.__TEST__.trackAt(tt), t);
+    const m = await meta(page, t);
+    if (
+      m.onBar22 &&
+      m.plan === T.N_STEPS - 1 &&
+      m.sPrev.w === 100 &&
+      m.beatInStep > 0.05 &&
+      m.beatInStep < T.REST
+    ) {
+      tFirst2122 = t;
+      m2122 = m;
+      break;
+    }
+  }
+  if (!tFirst2122) {
+    fail("first 21→22: find REST frame", "no frame");
+  } else {
+    const sample2122 = await drawAndSample(page, tFirst2122);
+    const fg2122 = m2122.plan % 2 === 1 ? "#0d0d0d" : "#cccccc";
+    const bg2122 = m2122.plan % 2 === 1 ? "#cccccc" : "#0d0d0d";
+    if (
+      lineHasFg(
+        sample2122,
+        m2122.sPrev.y,
+        Math.max(0, m2122.sPrev.x),
+        m2122.sPrev.x + m2122.sPrev.w,
+        fg2122,
+        bg2122,
+        4
+      )
+    ) {
+      pass("first 21→22: step 21 platform visible during REST");
+    } else {
+      fail("first 21→22: step 21 during REST", `sPrev=${JSON.stringify(m2122.sPrev)}`);
+    }
+  }
+
   // --- 2. Loop return: bar 21 visible + bar 22 platform ---
   const tLoop22 = (T.START_BEAT + T.PIECE_BEATS + 1) * T.BEAT;
   await page.evaluate(() => {
@@ -499,7 +543,7 @@ async function main() {
 
   console.log("");
   if (failures.length === 0) {
-    console.log(`All ${14} checks passed.`);
+    console.log(`All ${15} checks passed.`);
     process.exit(0);
   } else {
     console.log(`${failures.length} check(s) failed.`);
