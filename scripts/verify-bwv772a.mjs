@@ -490,7 +490,7 @@ async function main() {
   // --- 2b. 21→22: smooth lift (not instant jump) ---
   await page.evaluate(() => window.__TEST__.boot());
   const tLoopStart = (T.START_BEAT + T.PIECE_BEATS - 0.5) * T.BEAT;
-  const tLoopEnd = (T.START_BEAT + T.PIECE_BEATS + T.REST) * T.BEAT;
+  const tLoopEnd = (T.START_BEAT + T.PIECE_BEATS + 0.5) * T.BEAT;
   await page.evaluate(
     (t0, t1) => {
       window.__TEST__.runTrack(t0, t1, 0.005);
@@ -519,7 +519,7 @@ async function main() {
 
   const ballYs = [];
   const stepYs = [];
-  for (let b = 0; b <= T.REST; b += 0.02) {
+  for (let b = 0; b <= 0.5; b += 0.02) {
     const t = (T.START_BEAT + T.PIECE_BEATS + b) * T.BEAT;
     const sample = await page.evaluate((t) => {
       const x = window.__TEST__;
@@ -541,11 +541,11 @@ async function main() {
     ? Math.max(...ballYs) - Math.min(...ballYs)
     : 0;
   const stepLift = stepYs.length ? stepYs[0] - stepYs[stepYs.length - 1] : 0;
-  if (stepLift > 20 && ballRange < 8 && maxBallStep < 8) {
-    pass("21→22: ball fixed like cycle REST (not platform tracking)");
+  if (stepLift > 20 && ballRange > 8 && maxBallStep < 40) {
+    pass("21→22: ball bounces on REST entry");
   } else {
     fail(
-      "21→22: ball REST motion",
+      "21→22: ball bounces on REST entry",
       `stepLift=${stepLift.toFixed(1)} ballRange=${ballRange.toFixed(1)} maxBallStep=${maxBallStep.toFixed(1)}`
     );
   }

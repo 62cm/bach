@@ -98,7 +98,9 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
   const START_BEAT = (TOTAL_BARS - 1) * 4; // bar 22
 
   const REST = 0.25;
-  const FLASH32 = 1 / 8; // 32 分音符（四分拍为单位）
+  const FLASH16 = 1 / 4; // 16 分音符
+  const FLASH32 = 1 / 8; // 32 分音符
+  const BAR2122_DUR = FLASH16 + FLASH32;
   const BIG = [0.25, 0.5, 0.75];
   const SMALL = [1.0, 1 + 1 / 6, 1 + 2 / 6, 1.5, 1.5 + 1 / 6, 1.5 + 2 / 6];
   const ALL_HITS = BIG.concat(SMALL);
@@ -263,13 +265,18 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
     const prevDrop = cumDropUpTo(stepIndex - 1);
     const curDrop = cumDropUpTo(stepIndex);
     if (u < ROLL_FRAC) return prevDrop;
-    const f = (u - ROLL_FRAC) / (1 - ROLL_FRAC);
+    const f = Math.min(1, (u - ROLL_FRAC) / (1 - ROLL_FRAC));
     return prevDrop + (curDrop - prevDrop) * (f * f);
+  }
+
+  function restEntryDur(tMus, plan) {
+    if (isBar22(plan) && !isFirstOpening(tMus)) return BAR2122_DUR;
+    return REST;
   }
 
   /** 周期开头 REST：滚落/抬升进入本台阶（含循环回到 22） */
   function isRestEntry(tMus, plan, beatInStep, stepIndex) {
-    if (beatInStep >= REST || stepIndex <= 0) return false;
+    if (beatInStep >= restEntryDur(tMus, plan) || stepIndex <= 0) return false;
     if (stepKind(plan) === "cycle") return true;
     return isBar22(plan) && !isFirstOpening(tMus);
   }
@@ -330,26 +337,57 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
   function restFallY(beat, groundPrev, ground) {
     const u = beat / REST;
     if (u < ROLL_FRAC) return groundPrev;
-    const f = (u - ROLL_FRAC) / (1 - ROLL_FRAC);
+    const f = Math.min(1, (u - ROLL_FRAC) / (1 - ROLL_FRAC));
     return groundPrev + (ground - groundPrev) * (f * f);
+  }
+
+  /** 21→22：16 分滚落 + 32 分小反弹（高度同序列第 2 音） */
+  function bar2122BallY(beat, groundPrev, ground) {
+    if (beat < FLASH16) {
+      const f = beat / FLASH16;
+      return groundPrev + (ground - groundPrev) * (f * f);
+    }
+    if (beat >= FLASH16 + FLASH32) return ground;
+    const u = (beat - FLASH16) / FLASH32;
+    return ground - arc(u, bouncePeak(1, "big"));
+  }
+
+  function bar2122Impact(beat) {
+    return (
+      Math.abs(beat - FLASH16) < 0.02 ||
+      Math.abs(beat - (FLASH16 + FLASH32)) < 0.02
+    );
+  }
+
+  /** 21→22 前 resting 实心；每次落地后交替（实→空→实…） */
+  function prevRestingFilled() {
+    return loopCount <= 1 || (loopCount - 1) % 2 === 0;
+  }
+
+  function bar2122Filled(beat) {
+    const prev = prevRestingFilled();
+    const toggled = !prev;
+    if (beat >= FLASH16 + FLASH32) return toggled;
+    if (beat >= FLASH16) {
+      const u = (beat - FLASH16) / FLASH32;
+      if (u <= 1e-3 || u >= 1 - 1e-3) return toggled;
+      return prev;
+    }
+    return prev;
   }
 
   function isStep21(plan) {
     return plan === N_STEPS - 2;
   }
 
-  /** 球：loopCount<0 实心；21→22 落地闪夹心（32分×2）后持续目标态 */
+  /** 球：loopCount<0 实心；21→22 双触地闪烁后交替态（偶数 loop 实心） */
   function ballFilled(tMus, ball, plan, beatInStep, stepIndex) {
     if (ball.impact) return true;
     if (loopCount < 0) return true;
-    if (isBar22(plan) && !isFirstOpening(tMus) && beatInStep < FLASH32 * 2) {
-      const prevLoop = loopCount - 1;
-      const prevFilled = prevLoop < 0 || prevLoop % 2 === 1;
-      if (beatInStep < 1e-4) return !prevFilled;
-      if (beatInStep < FLASH32) return prevFilled;
-      return !prevFilled;
+    if (isBar22(plan) && !isFirstOpening(tMus) && beatInStep < BAR2122_DUR) {
+      return bar2122Filled(beatInStep);
     }
-    return loopCount % 2 === 1;
+    return loopCount % 2 === 0;
   }
 
   let audioCtx = null, master = null;
@@ -548,8 +586,17 @@ const SUBJECT_TAGS={"lh-0":1,"lh-1":2,"lh-2":3,"lh-b0-t0-n0":4,"lh-b0-t0-n1":5,"
       return { x: ballX, y: ground, bar: plan, impact: false };
     }
 
-    // REST 滚落/抬升：cycle 与 21→22 共用同一速度曲线
+    // REST 滚落/抬升：cycle 用原曲线；21→22 单独 16 分+32 分反弹
     if (isRestEntry(tMus, plan, beat, stepIndex)) {
+      if (isBar22(plan) && !isFirstOpening(tMus)) {
+        const y = bar2122BallY(beat, groundPrev, ground);
+        return {
+          x: BX,
+          y,
+          bar: plan,
+          impact: bar2122Impact(beat),
+        };
+      }
       const y = restFallY(beat, groundPrev, ground);
       return {
         x: BX,
