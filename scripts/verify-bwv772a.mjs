@@ -455,18 +455,18 @@ async function main() {
     if (
       s2h.start &&
       !s2h.fall &&
-      s2h.land1 &&
+      !s2h.land1 &&
       !s2h.rise1 &&
       !s2h.end &&
       !s2h.rest &&
       !h2s.start &&
       h2s.fall &&
       !h2s.land1 &&
-      h2s.rise1 &&
+      !h2s.rise1 &&
       h2s.end &&
       h2s.rest
     ) {
-      pass("21→22: 实→空 / 空→实，触地实上升空");
+      pass("21→22: 实→空 / 空→实，触地上升皆空");
     } else {
       fail("21→22: fill pattern", JSON.stringify(fillToggle));
     }
