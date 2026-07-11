@@ -53,6 +53,7 @@ const INJECT = `
     ORIGIN_Y,
     STEP_H,
     cumDropUpTo,
+    cumWidthUpTo,
   };
 `;
 
@@ -198,9 +199,22 @@ async function main() {
 
   console.log("BWV772a draw verification\n");
 
-  // --- 0. Before start: idle bar 22 preview (right block visible)
+  // --- 0. Before start: idle bar 22 preview (same full step as loop return)
   const preStart = await samplePage(page);
-  const preLine = lineHasFg(preStart, 209, 180, 300, "#cccccc", "#0d0d0d", 4);
+  const preMeta = await page.evaluate(() => {
+    const T = window.__TEST__;
+    const scrollX = T.cumWidthUpTo(T.N_STEPS - 1);
+    return T.stepScreen(T.N_STEPS - 1, scrollX, T.START_BEAT * T.BEAT);
+  });
+  const preLine = lineHasFg(
+    preStart,
+    preMeta.y,
+    Math.max(0, preMeta.x),
+    preMeta.x + preMeta.w,
+    "#cccccc",
+    "#0d0d0d",
+    4
+  );
   if (preLine) pass("pre-start: bar 22 idle platform visible");
   else fail("pre-start: bar 22 idle platform visible", "no fg on platform");
 
@@ -225,7 +239,7 @@ async function main() {
       sampleOpen,
       y22,
       Math.max(0, mOpen.sCur.x),
-      mOpen.sCur.x + 100,
+      mOpen.sCur.x + mOpen.sCur.w,
       fgOpen,
       bgOpen
     )
