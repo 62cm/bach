@@ -20,6 +20,21 @@ def make_silent_sextuplet(bar_i, voice, remove_ids, pitches, silent_index, t0=3.
     return remove_ids, events
 
 
+def fix_bar22_arpeggio(score):
+    """Bar 22 ending: 16th-note arpeggio low → high (not 32nd blur-chord)."""
+    ids = ["lh-219", "lh-218", "rh-253", "rh-252", "rh-251"]
+    notes = [e for e in score if e["id"] in ids]
+    if len(notes) != 5:
+        return score
+    notes.sort(key=lambda e: e["midi"])
+    bar_start, piece_end, step = 84.0, 88.0, 0.25
+    for i, e in enumerate(notes):
+        e["t"] = round(bar_start + i * step, 6)
+        e["dur"] = round(piece_end - e["t"] - 0.02, 6)
+    score.sort(key=lambda e: (e["t"], e["midi"]))
+    return score
+
+
 def apply_score_fixes(score):
     fixes = [
         # bar 6 RH: bcbag → bcbbag, 4th (=2nd B) silent
@@ -49,4 +64,5 @@ def apply_score_fixes(score):
     out = [e for e in score if e["id"] not in remove_all]
     out.extend(insert_all)
     out.sort(key=lambda e: (e["t"], e["midi"]))
+    out = fix_bar22_arpeggio(out)
     return out
